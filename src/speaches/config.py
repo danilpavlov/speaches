@@ -259,3 +259,16 @@ class Config(BaseSettings):
     If set this is the URL that the gradio app will use to connect to the API server hosting speaches.
     If not set the gradio app will use the url that the user connects to the gradio app on.
     """
+
+    # Данный флаг позволяет включить/отключить динамическую загрузку моделей в отдельном потоке
+    enable_dynamic_loading: bool = Field(default=False)
+    
+    @field_validator('enable_dynamic_loading')
+    def check_enable_dynamic_loading(cls, value):
+        if isinstance(value, str):
+            return value.lower() in ['1', 'yes', 'true']
+        elif isinstance(value, bool):
+            return value
+        return False
+    
+CONFIG = Config()
