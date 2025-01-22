@@ -1,6 +1,6 @@
 import enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SAMPLES_PER_SECOND = 16000
@@ -163,7 +163,7 @@ class WhisperConfig(BaseModel):
     compute_type: Quantization = Field(default=Quantization.DEFAULT)
     cpu_threads: int = 0
     num_workers: int = 1
-    ttl: int = Field(default=300, ge=-1)
+    ttl: int = Field(default=10, ge=-1)
     """
     Time in seconds until the model is unloaded if it is not being used.
     -1: Never unload the model.
