@@ -1,7 +1,11 @@
 import enum
 
+from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+
+
 
 SAMPLES_PER_SECOND = 16000
 BYTES_PER_SAMPLE = 2
@@ -9,6 +13,32 @@ BYTES_PER_SECOND = SAMPLES_PER_SECOND * BYTES_PER_SAMPLE
 # 2 BYTES = 16 BITS = 1 SAMPLE
 # 1 SECOND OF AUDIO = 32000 BYTES = 16000 SAMPLES
 
+
+class DiarizationConfig(BaseModel):
+    model_name: str = Field(default="pyannote/speaker-diarization-3.1")
+    # auth_token: Optional[str] = None
+    auth_token: Optional[str] = Field(default=None)
+    device: str = Field(default="cpu")
+    min_speakers: int = 1
+    max_speakers: int = 2
+    
+    @field_validator('device')
+    def validate_device(cls, value: str) -> str:
+        device_and_id = value.lower().split(':')
+        if device_and_id[0] in ['cuda', 'gpu']:
+            assert (
+                any([os.system(cmd) == 0 for cmd in ['nvidia-smi', 'nvidia-smi -L', 'which nvidia-smi']]),
+                f"GPU не доступны! Пожалуйста, чекните конфигурацию cuda и ее драйвера!"
+            )
+            assert len(device_and_id) == 2, f"Пожалуйста, укажите GPU в формате (cuda:device_index)! Пример: 'cuda:0'"
+            assert device_and_id[1].isdigit(), f"Индекс CUDA должен быть числом! Пример: 'cuda:0'"
+            
+            gpu_count = int(os.popen("nvidia-smi --list-gpus | wc -l").read().strip())
+            assert int(device_and_id[1]) < gpu_count, f"Невозможно использовать cuda:{device_and_id[1]}! Доступно только {gpu_count} GPU."
+        elif device_and_id[0] in ['cpu']:
+            return value
+        else:
+            raise ValueError(f"Неверный девайс: {value}")
 
 # https://platform.openai.com/docs/api-reference/audio/createTranscription#audio-createtranscription-response_format
 class ResponseFormat(enum.StrEnum):
@@ -216,6 +246,7 @@ class Config(BaseSettings):
     """
     default_response_format: ResponseFormat = ResponseFormat.JSON
     whisper: WhisperConfig = WhisperConfig()
+    diarization: DiarizationConfig = DiarizationConfig()
     max_no_data_seconds: float = 1.0
     """
     Max duration to wait for the next audio chunk before transcription is finilized and connection is closed.
