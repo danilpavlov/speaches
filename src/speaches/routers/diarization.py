@@ -32,7 +32,10 @@ diarization_pipeline = Pipeline.from_pretrained(
     CONFIG.diarization.model_name,
     use_auth_token=CONFIG.diarization.auth_token,
     
-).to(torch.device(CONFIG.diarization.device))
+)
+if CONFIG.diarization.device != 'cpu':
+    logger.info(f'Loading diarization model on {CONFIG.diarization.device}')
+    diarization_pipeline = diarization_pipeline.to(torch.device(CONFIG.diarization.device))
 assert diarization_pipeline, "Diarization pipeline not loaded"
 
 

@@ -35,6 +35,7 @@ class DiarizationConfig(BaseModel):
             
             gpu_count = int(os.popen("nvidia-smi --list-gpus | wc -l").read().strip())
             assert int(device_and_id[1]) < gpu_count, f"Невозможно использовать cuda:{device_and_id[1]}! Доступно только {gpu_count} GPU."
+            return value
         elif device_and_id[0] in ['cpu']:
             return value
         else:
