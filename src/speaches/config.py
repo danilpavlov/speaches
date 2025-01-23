@@ -23,7 +23,7 @@ class DiarizationConfig(BaseModel):
     max_speakers: int = 2
     
     @field_validator('device')
-    def validate_device(self, value: str) -> str:
+    def validate_device(cls, value: str) -> str:
         device_and_id = value.lower().split(':')
         if device_and_id[0] in ['cuda', 'gpu']:
             assert (
