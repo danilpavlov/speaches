@@ -31,8 +31,6 @@ from speaches.routers.diarization import (
 )
 from contextlib import asynccontextmanager
 from speaches.config import CONFIG
-import torch
-from pyannote.audio import Pipeline
 
 # https://swagger.io/docs/specification/v3_0/grouping-operations-with-tags/
 # https://fastapi.tiangolo.com/tutorial/metadata/#metadata-for-tags
@@ -50,12 +48,6 @@ TAGS_METADATA = [
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print('Starting up')
-    global diarization_pipeline
-    diarization_pipeline = Pipeline.from_pretrained(
-        CONFIG.diarization.model_name,
-        use_auth_token=CONFIG.diarization.auth_token,
-        
-    ).to(torch.device(CONFIG.diarization.device))
     yield
     print('Shutting down')
     
