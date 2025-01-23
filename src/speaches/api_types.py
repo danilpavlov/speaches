@@ -71,7 +71,7 @@ class TranscriptionSegment(BaseModel):
                 end=segment.end,
                 text=segment.text,
                 tokens=segment.tokens,
-                temperature=segment.temperature or 0,  # FIX: hardcoded
+                temperature=segment.temperature,
                 avg_logprob=segment.avg_logprob,
                 compression_ratio=segment.compression_ratio,
                 no_speech_prob=segment.no_speech_prob,
@@ -86,6 +86,7 @@ class TranscriptionSegment(BaseModel):
                 ]
                 if segment.words is not None
                 else None,
+                speaker=None,
             )
 
 
