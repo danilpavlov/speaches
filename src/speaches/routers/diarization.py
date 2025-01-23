@@ -8,22 +8,32 @@ import numpy as np
 from pydantic import BaseModel
 from typing import Optional, List, Annotated
 from speaches.api_types import (
+    DEFAULT_TIMESTAMP_GRANULARITIES,
     CreateTranscriptionResponseJson,
     CreateTranscriptionResponseVerboseJson,
     TimestampGranularities,
-    TranscriptionSegment,
+    TranscriptionSegment
 )
 import asyncio
 from faster_whisper.transcribe import BatchedInferencePipeline
-from speaches.map_speakers import map_speakers_to_segments, DiarizationSegment, TranscriptionSegment
+from speaches.map_speakers import map_speakers_to_segments, DiarizationSegment
 from speaches.config import Task, ResponseFormat
-from speaches.routers.stt import ModelName, Language, get_timestamp_granularities, DEFAULT_TIMESTAMP_GRANULARITIES
+from speaches.routers.stt import ModelName, Language, get_timestamp_granularities
 
 import torchaudio
+import torch
+from speaches.config import CONFIG
+from pyannote.audio import Pipeline
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=['Diarization'])
 
+diarization_pipeline = Pipeline.from_pretrained(
+    CONFIG.diarization.model_name,
+    use_auth_token=CONFIG.diarization.auth_token,
+    
+).to(torch.device(CONFIG.diarization.device))
+assert diarization_pipeline, "Diarization pipeline not loaded"
 
 
 class DiarizationResponse(BaseModel):
@@ -34,18 +44,18 @@ class DiarizationResponse(BaseModel):
 
 async def diarize_audio(
     config: ConfigDependency,
-    audio: UploadFile = File(...),
+    audio: UploadFile | BytesIO = File(...),
     num_speakers: int | None = None,
     min_speakers: int | None = None,
     max_speakers: int | None = None,
 ):
-    global diarization_pipeline
     try:
         logger.info(audio)
         # Perform diarization with the properly formatted audio input
         # Read the audio file
-        audio_content = await audio.read()
-        audio_stream = BytesIO(audio_content)
+        audio_stream = audio if isinstance(audio, BytesIO) else BytesIO(await audio.read())
+        audio_stream.seek(0)  # Ensure we're at start of stream
+        
         
         # Load audio using torchaudio
         waveform, sample_rate = torchaudio.load(audio_stream)
@@ -94,7 +104,7 @@ async def diarize(
     "/v1/audio/diarization",
     response_model=str | CreateTranscriptionResponseJson | CreateTranscriptionResponseVerboseJson,
 )
-async def diarize_file(
+def diarize_file(
     config: ConfigDependency,
     model_manager: ModelManagerDependency,
     request: Request,
@@ -120,7 +130,7 @@ async def diarize_file(
         language = config.default_language
     if response_format is None:
         response_format = config.default_response_format
-    timestamp_granularities = asyncio.run(get_timestamp_granularities(request))
+    timestamp_granularities =  asyncio.run(get_timestamp_granularities(request))
     if timestamp_granularities != DEFAULT_TIMESTAMP_GRANULARITIES and response_format != ResponseFormat.VERBOSE_JSON:
         logger.warning(
             "It only makes sense to provide `timestamp_granularities[]` when `response_format` is set to `verbose_json`. See https://platform.openai.com/docs/api-reference/audio/createTranscription#audio-createtranscription-timestamp_granularities."  # noqa: E501
@@ -138,7 +148,7 @@ async def diarize_file(
             hotwords=hotwords,
         )
         # segments = TranscriptionSegment.from_faster_whisper_segments(segments)
-        transcription_segments = list(TranscriptionSegment.from_faster_whisper_segments(segments))
+        transcription_segments = TranscriptionSegment.from_faster_whisper_segments(segments)
 
     params = {'num_speakers': num_speakers} if num_speakers else {}
     
@@ -146,30 +156,24 @@ async def diarize_file(
         # Convert numpy array to bytes
         audio_bytes = BytesIO()
         
-        waveform = np.expand_dims(audio, axis=0)  # Добавляем размерность канала (channel dimension)
         # Save as WAV file
         torchaudio.save(
             audio_bytes,
-            src=waveform,
-            #torch.from_numpy(audio).unsqueeze(0),  # Add channel dimension
+            torch.from_numpy(audio).unsqueeze(0),  # Add channel dimension
             sample_rate=16000,  # faster-whisper uses 16kHz
             format="wav"
         )
         audio_bytes.seek(0)  # Reset buffer position
         
-        # Create files dictionary for requests
-        files = {
-            'audio': ('audio.wav', audio_bytes, 'audio/wav')
-        }
-        
         # Send request with proper file formatting
-        diarization_response = await diarize(
+        diarization_response = asyncio.run(diarize(
+            config=config,
             audio=audio_bytes,
             #files=files,
             **params
-        )
+        ))
         
-        logger.info(diarization_data)
+        logger.info(diarization_response)
         if not diarization_response.success:
             raise HTTPException(
                 status_code=500,
