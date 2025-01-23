@@ -45,30 +45,7 @@ services:
     develop:
       watch:
         - path: faster_whisper_server
-          action: rebuild
-  diarization-server:
-    image: whisper-diarization:latest
-    build:
-      dockerfile: Dockerfile.diarization
-      context: .
-      platforms:
-        - linux/amd64
-        - linux/arm64
-    restart: unless-stopped
-    ports:
-      - 8001:8001
-    volumes:
-      - hugging_face_cache:/root/.cache/huggingface
-      - torch:/root/.cache/torch
-    develop:
-      watch:
-        - path: src/diarization
-          action: rebuild
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: ["gpu"]
+          action: rebuil
 volumes:
   hugging_face_cache:
   torch:

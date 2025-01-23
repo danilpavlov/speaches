@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import platform
+
 import uvicorn
 
 from fastapi import (
@@ -30,7 +31,6 @@ from speaches.routers.diarization import (
     router as diarization_router,
 )
 from contextlib import asynccontextmanager
-from speaches.config import CONFIG
 
 # https://swagger.io/docs/specification/v3_0/grouping-operations-with-tags/
 # https://fastapi.tiangolo.com/tutorial/metadata/#metadata-for-tags

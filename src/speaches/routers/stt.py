@@ -41,6 +41,9 @@ from speaches.dependencies import AudioFileDependency, ConfigDependency, ModelMa
 from speaches.text_utils import segments_to_srt, segments_to_text, segments_to_vtt
 from speaches.transcriber import audio_transcriber
 
+# Custom packages:
+from speaches.map_speakers import map_speakers_to_segments, DiarizationSegment
+
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable
