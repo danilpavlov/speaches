@@ -1,11 +1,19 @@
+"""
+Модуль для диаризации аудио (определение говорящих).
+
+Предоставляет два основных эндпоинта:
+- /diarize: Простая диаризация аудио
+- /v1/audio/diarization: Расширенная диаризация в формате OpenAI
+
+Использует pyannote.audio для определения говорящих и faster-whisper для транскрипции.
+"""
 from fastapi import APIRouter, File, UploadFile, Request, HTTPException, Form
 from fastapi.responses import StreamingResponse, Response
-from speaches.dependencies import ConfigDependency, AudioFileDependency, ModelManagerDependency
+from speaches.dependencies import ConfigDependency, AudioFileDependency, ModelManagerDependency, DiarizationModelDependency
 from io import BytesIO
 import logging
-import numpy as np
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Annotated
 from speaches.api_types import (
     DEFAULT_TIMESTAMP_GRANULARITIES,
@@ -22,36 +30,50 @@ from speaches.routers.stt import ModelName, Language, get_timestamp_granularitie
 
 import torchaudio
 import torch
-from speaches.config import CONFIG
-from pyannote.audio import Pipeline
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=['Diarization'])
-
-diarization_pipeline = Pipeline.from_pretrained(
-    CONFIG.diarization.model_name,
-    use_auth_token=CONFIG.diarization.auth_token,
-    
-)
-if CONFIG.diarization.device != 'cpu':
-    logger.info(f'Loading diarization model on {CONFIG.diarization.device}')
-    diarization_pipeline = diarization_pipeline.to(torch.device(CONFIG.diarization.device))
-assert diarization_pipeline, "Diarization pipeline not loaded"
-
+router = APIRouter(tags=['Диаризация'])
 
 class DiarizationResponse(BaseModel):
-    diarization_segments: List[dict]
-    success: bool
-    error: Optional[str] = None
+    diarization_segments: List[dict] = Field(default_factory=list)
+    success: bool = Field(default=False)
+    error: Optional[str] = Field(default=None)
 
 
 async def diarize_audio(
     config: ConfigDependency,
+    diarization_manager: DiarizationModelDependency,
     audio: UploadFile | BytesIO = File(...),
     num_speakers: int | None = None,
     min_speakers: int | None = None,
     max_speakers: int | None = None,
-):
+) -> DiarizationResponse:
+    """
+    # Description
+        Выполняет диаризацию аудио файла с помощью pyannote.audio.
+
+    ## Args:
+        config: Конфигурация приложения
+        audio: Аудио файл (UploadFile или BytesIO)
+        num_speakers: Точное количество говорящих
+        min_speakers: Минимальное количество говорящих
+        max_speakers: Максимальное количество говорящих
+
+    ## Returns:
+        DiarizationResponse с сегментами диаризации
+
+    ## Raises:
+        Exception: При ошибке диаризации
+
+    #### Examples:
+        >>> response = await diarize_audio(
+        ...     config=config,
+        ...     audio=audio_file,
+        ...     num_speakers=2
+        ... )
+        >>> print(response.diarization_segments)
+        [{'speaker': 'SPEAKER_00', 'start': 0.0, 'end': 1.5}, ...]
+    """
     try:
         logger.info(audio)
         # Perform diarization with the properly formatted audio input
@@ -59,11 +81,9 @@ async def diarize_audio(
         audio_stream = audio if isinstance(audio, BytesIO) else BytesIO(await audio.read())
         audio_stream.seek(0)  # Ensure we're at start of stream
         
-        
         # Load audio using torchaudio
         waveform, sample_rate = torchaudio.load(audio_stream)
-
-        diarization = diarization_pipeline(
+        diarization = diarization_manager(
             {"waveform": waveform, "sample_rate": sample_rate},
             num_speakers=num_speakers,
             min_speakers=min_speakers or config.diarization.min_speakers,
@@ -78,7 +98,6 @@ async def diarize_audio(
                 "start": float(turn.start),
                 "end": float(turn.end)
             })
-            
         return DiarizationResponse(
             diarization_segments=segments,
             success=True
@@ -92,23 +111,61 @@ async def diarize_audio(
             error=str(e)
         )
         
-@router.post('/diarize', response_model=DiarizationResponse)
+@router.post(
+    '/diarize', 
+    response_model=DiarizationResponse,
+    summary="Точечная диаризация аудиофайла")
 async def diarize(
     config: ConfigDependency,
+    diarization_manager: DiarizationModelDependency,
     audio: UploadFile = File(...),
     num_speakers: int | None = None,
     min_speakers: int | None = None,
     max_speakers: int | None = None
 ):
-    return await diarize_audio(config, audio, num_speakers, min_speakers, max_speakers)
+    """
+    # Description
+        Эндпоинт для базовой диаризации аудио. Определяет говорящих в аудио файле.
+
+    #### Features:
+        - Определение количества говорящих
+        - Временные метки для каждого говорящего
+        - Настраиваемые параметры диаризации
+        
+    ## Args:
+        config: Конфигурация приложения
+        audio: Аудио файл
+        num_speakers: Точное количество говорящих
+        min_speakers: Минимальное количество говорящих
+        max_speakers: Максимальное количество говорящих
+
+    ## Returns:
+        DiarizationResponse с результатами диаризации
+
+    #### Examples:
+        >>> with open('audio.wav', 'rb') as f:
+        ...     file = UploadFile(f)
+        ...     response = await diarize(
+        ...         config=config,
+        ...         audio=file,
+        ...         num_speakers=2
+        ...     )
+        >>> print(response.diarization_segments)
+        [{'speaker': 'SPEAKER_00', 'start': 0.0, 'end': 1.5}, ...]
+    """
+    print(f'DIARIZATION MANAGER: {diarization_manager}')
+    return await diarize_audio(
+        config, diarization_manager, audio, num_speakers, min_speakers, max_speakers
+    )
 
 
 @router.post(
     "/v1/audio/diarization",
     response_model=str | CreateTranscriptionResponseJson | CreateTranscriptionResponseVerboseJson,
-)
+    summary="Диаризация аудиофайла (OpenAI формат)")
 def diarize_file(
     config: ConfigDependency,
+    diarization_manager: DiarizationModelDependency,
     model_manager: ModelManagerDependency,
     request: Request,
     audio: AudioFileDependency,
@@ -127,6 +184,51 @@ def diarize_file(
     vad_filter: Annotated[bool, Form()] = False,
     num_speakers: Annotated[int | None, Form()] = None,
 ) -> Response | StreamingResponse:
+    """
+    # Description
+        Комбинирует распознавание речи и диаризацию в формате OpenAI.
+        
+    #### Features:
+        - Распознавание речи с помощью Whisper
+        - Диаризация с помощью pyannote.audio
+        - Поддержка hotwords и VAD
+        - Различные форматы ответа
+
+    ## Args:
+        config: Конфигурация приложения
+        model_manager: Менеджер моделей
+        request: FastAPI запрос
+        audio: Аудио файл
+        model: Модель Whisper
+        language: Язык аудио
+        prompt: Промпт для улучшения распознавания
+        response_format: Формат ответа
+        temperature: Температура сэмплирования
+        timestamp_granularities: Гранулярность временных меток
+        hotwords: Ключевые слова
+        vad_filter: Использовать VAD фильтр
+        num_speakers: Количество говорящих
+
+    ## Returns:
+        Response или StreamingResponse с результатами диаризации и транскрипции
+
+    ## Raises:
+        HTTPException: При ошибках обработки
+
+    #### Examples:
+        >>> response = await diarize_file(
+        ...     config=config,
+        ...     model_manager=model_manager,
+        ...     request=request,
+        ...     audio=audio_file,
+        ...     model="whisper-1",
+        ...     language="ru",
+        ...     response_format="verbose_json",
+        ...     num_speakers=2
+        ... )
+        >>> print(response)
+        `{"segments": [{"start": 0.0, "end": 1.5, "speaker": "SPEAKER_00", "text": "Привет, мир!"}, ...]}`
+    """
     if model is None:
         model = config.whisper.model
     if language is None:
@@ -171,6 +273,7 @@ def diarize_file(
         # Send request with proper file formatting
         diarization_response = asyncio.run(diarize(
             config=config,
+            diarization_manager=diarization_manager,
             audio=audio_bytes,
             #files=files,
             **params
@@ -187,15 +290,16 @@ def diarize_file(
         # Convert diarization segments to proper objects
         diarization_segments = [
                 DiarizationSegment(
-                    speaker=seg['speaker'],
-                    start=float(seg['start']),
-                    end=float(seg['end'])
+                    speaker=seg["speaker"],
+                    start=float(seg["start"]),
+                    end=float(seg["end"])
                 )
                 for seg in diarization_response.diarization_segments
             ]
         logger.info(transcription_segments)
         logger.info(diarization_segments)
-            # Map speakers to segments and return JSON response directly
+        
+        # Map speakers to segments and return JSON response directly
         result = map_speakers_to_segments(transcription_segments, diarization_segments)
         return Response(
                 content=result,  # result is already a JSON string from map_speakers_to_segments
@@ -207,5 +311,3 @@ def diarize_file(
             status_code=500,
             detail=f"Failed to connect to diarization service: {str(e)}"
         )
-    # return map_speakers_to_segments(list(segments), diarization_segments)
-    # return segments_to_response(segments, transcription_info, response_format)
