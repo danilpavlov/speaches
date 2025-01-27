@@ -16,6 +16,8 @@ USER ubuntu
 ENV HOME=/home/ubuntu \
     PATH=/home/ubuntu/.local/bin:$PATH
 WORKDIR $HOME/speaches
+
+COPY --chown=ubuntu ./wheels ./wheels/
 # https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
 COPY --chown=ubuntu --from=ghcr.io/astral-sh/uv:0.5.18 /uv /bin/uv
 # https://docs.astral.sh/uv/guides/integration/docker/#intermediate-layers
@@ -44,4 +46,5 @@ ENV HF_HUB_ENABLE_HF_TRANSFER=0
 # https://www.reddit.com/r/StableDiffusion/comments/1f6asvd/gradio_sends_ip_address_telemetry_by_default/
 ENV DO_NOT_TRACK=1
 EXPOSE 8000
-CMD ["uvicorn", "--factory", "speaches.main:create_app"]
+
+CMD ["uv", "run", "uvicorn", "--factory", "speaches.main:create_app"]

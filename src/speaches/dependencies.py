@@ -19,6 +19,9 @@ from openai import AsyncOpenAI
 from openai.resources.audio import AsyncSpeech, AsyncTranscriptions
 from openai.resources.chat.completions import AsyncCompletions
 
+from pyannote.audio import Pipeline
+import torch
+
 from speaches.config import Config
 from speaches.model_manager import KokoroModelManager, PiperModelManager, WhisperModelManager
 
@@ -40,6 +43,7 @@ ConfigDependency = Annotated[Config, Depends(get_config)]
 @lru_cache
 def get_model_manager() -> WhisperModelManager:
     config = get_config()
+    print(config.whisper)
     return WhisperModelManager(config.whisper)
 
 
@@ -49,7 +53,7 @@ ModelManagerDependency = Annotated[WhisperModelManager, Depends(get_model_manage
 @lru_cache
 def get_piper_model_manager() -> PiperModelManager:
     config = get_config()
-    return PiperModelManager(config.whisper.ttl)  # HACK: should have its own config
+    return PiperModelManager(config.whisper.ttl, config.enable_dynamic_loading)  # HACK: should have its own config
 
 
 PiperModelManagerDependency = Annotated[PiperModelManager, Depends(get_piper_model_manager)]
@@ -58,7 +62,7 @@ PiperModelManagerDependency = Annotated[PiperModelManager, Depends(get_piper_mod
 @lru_cache
 def get_kokoro_model_manager() -> KokoroModelManager:
     config = get_config()
-    return KokoroModelManager(config.whisper.ttl)  # HACK: should have its own config
+    return KokoroModelManager(config.whisper.ttl, config.enable_dynamic_loading)  # HACK: should have its own config
 
 
 KokoroModelManagerDependency = Annotated[KokoroModelManager, Depends(get_kokoro_model_manager)]
@@ -156,3 +160,26 @@ def get_transcription_client() -> AsyncTranscriptions:
 
 
 TranscriptionClientDependency = Annotated[AsyncTranscriptions, Depends(get_transcription_client)]
+
+
+@lru_cache
+def get_diarization_model() -> Pipeline:
+    """
+    Метод получения модели диаризации
+    
+    Note:
+        - Немного неочевидный трюк с вызовом функции с аргументом по умолчанию, 
+            чтобы избежать проблем с множественной загрузкой модели
+    """
+    config = get_config() # HACK
+    diarization_pipeline = Pipeline.from_pretrained(
+        config.diarization.model,
+        use_auth_token=config.hf_api_token,
+    )
+    logger.info(f'Загружаем модель диаризации на устройство: {config.diarization.device}')
+    if config.diarization.device != 'cpu':
+        diarization_pipeline = diarization_pipeline.to(torch.device(config.diarization.device))
+    assert diarization_pipeline, "Не удалось загрузить модель диаризации!"
+    return diarization_pipeline
+
+DiarizationModelDependency = Annotated[Pipeline, Depends(get_diarization_model)]

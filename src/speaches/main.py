@@ -32,6 +32,132 @@ from speaches.routers.diarization import (
 )
 from contextlib import asynccontextmanager
 
+DESCRIPTION = """
+# Speaches - Сервис для распознавания и синтеза речи
+
+## 📝 Описание
+Универсальный сервис для работы с аудио, включающий распознавание речи,
+определение говорящих и синтез речи.
+
+## 🚀 Основные возможности
+1. Распознавание речи (STT):
+   - Поддержка Whisper моделей
+   - Streaming режим для real-time транскрипции
+   - VAD фильтрация тишины
+   - Поддержка hotwords для улучшения точности
+   - Различные форматы вывода (text, json, vtt, srt)
+
+2. Диаризация (определение говорящих):
+   - Базовая диаризация (/diarize)
+   - Расширенная диаризация с транскрипцией (/v1/audio/diarization)
+   - Настройка количества говорящих
+   - Временные метки для каждого говорящего
+
+3. Синтез речи (TTS):
+   - Поддержка моделей Kokoro и Piper
+   - Различные языки и голоса
+   - Настраиваемые параметры синтеза
+   - Streaming передача аудио
+   - Форматы: mp3, wav, ogg
+
+## 🛠️ Основные эндпоинты
+1. Speech-to-Text (STT):
+   - POST /v1/audio/transcriptions - Распознавание речи
+   
+2. Диаризация:
+   - POST /diarize - Базовая диаризация
+   - POST /v1/audio/diarization - Расширенная диаризация
+   
+3. Text-to-Speech (TTS):
+   - POST /v1/audio/speech - Синтез речи
+
+## 📦 Поддерживаемые модели
+- Whisper (STT): faster-whisper-large-v3-turbo
+- Pyannote (Диаризация): pyannote/speaker-diarization-3.1
+- TTS: rhasspy/piper-voices
+
+## ⚙️ Конфигурация
+- Поддержка GPU для ускорения
+- Настройка размера батча
+- Кастомизация параметров моделей
+- Управление динамической загрузки модели
+
+## 📋 Примеры использования
+### 1. Диаризация аудио
+```bash
+curl -X POST "http://localhost:8000/v1/audio/diarization" \
+        -H "Content-Type: multipart/form-data" \
+        -F "file=@audio.wav" \
+        -F "model=base" \
+        -F "language=ru" \
+        -F "response_format=verbose_json" \
+        -F "num_speakers=2" \
+        -F "timestamp_granularities=segment" \
+        -F "timestamp_granularities=word"
+```
+Ожидаем:
+```json
+[
+  {
+    "id": 1,
+    "start": 0.0,
+    "end": 2.0,
+    "text": " Привет! Меня зовут Пайпер!",
+    "speaker": "SPEAKER_00"
+  }
+]
+```
+
+### 2. Точечная диаризация
+```bash
+curl -X POST http://localhost:8000/diarize \
+        -F "audio=@audio.wav" \
+        -F "num_speakers=2"
+```
+Ожидаем:
+```json
+{
+  "diarization_segments": [
+    {
+      "speaker": "SPEAKER_00",
+      "start": 0.03096875,
+      "end": 1.9209687500000001
+    }
+  ],
+  "success": true,
+  "error": null
+}
+```
+
+### 3. STT
+```bash
+curl http://localhost:8000/v1/audio/transcriptions -F "file=@audio.wav"
+```
+Ожидаем:
+```json
+{
+  "text": "Привет, меня зовут Пайпер."
+}
+```
+
+### 4. TTS
+```bash
+curl http://localhost:8000/v1/audio/speech \
+        -H "Content-Type: application/json" \
+        -d '{
+  "model": "rhasspy/piper-voices",
+  "input": "Привет, меня зовут Пайпер!",
+  "voice": "ru_RU-denis-medium",
+  "response_format": "wav",
+  "speed": 1,
+  "sample_rate": 8000
+}' \
+        --output audio.wav
+```
+Ожидаем: audio.wav
+
+"""
+
 # https://swagger.io/docs/specification/v3_0/grouping-operations-with-tags/
 # https://fastapi.tiangolo.com/tutorial/metadata/#metadata-for-tags
 TAGS_METADATA = [
@@ -70,12 +196,14 @@ def create_app() -> FastAPI:
     app = FastAPI(
         dependencies=dependencies, 
         openapi_tags=TAGS_METADATA, 
-        lifespan=lifespan
+        description=DESCRIPTION,
+        lifespan=lifespan,
     )
-    
     routers = [
-        stt_router, models_router, misc_router, speech_router, vad_router, diarization_router
-    ]
+            stt_router, models_router, 
+            misc_router, speech_router, 
+            vad_router, diarization_router
+        ]
     for router in routers:
         app.include_router(router)
 
@@ -99,9 +227,10 @@ def create_app() -> FastAPI:
 
 
 if __name__ == "__main__":
+    config = get_config()
     uvicorn.run(
         app=create_app,
-        host="127.0.0.1",
-        port=4000,
+        host=config.host,
+        port=config.port,
         factory=True,
     )

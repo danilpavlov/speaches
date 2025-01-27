@@ -191,7 +191,7 @@ async def get_timestamp_granularities(request: Request) -> TimestampGranularitie
 @router.post(
     "/v1/audio/transcriptions",
     response_model=str | CreateTranscriptionResponseJson | CreateTranscriptionResponseVerboseJson,
-)
+    summary="STT (Speache to text)")
 def transcribe_file(
     config: ConfigDependency,
     model_manager: ModelManagerDependency,
@@ -211,6 +211,38 @@ def transcribe_file(
     hotwords: Annotated[str | None, Form()] = None,
     vad_filter: Annotated[bool, Form()] = False,
 ) -> Response | StreamingResponse:
+    """
+    # Description
+        Преобразует аудио файл в текст используя модели Whisper.
+        
+    #### Features
+        - Поддержка различных форматов аудио
+        - Streaming режим для real-time транскрипции
+        - VAD фильтрация для удаления тишины
+        - Поддержка hotwords для улучшения распознавания
+        - Различные форматы вывода (text, json, vtt, srt)
+        
+    ## Returns:
+        Response или StreamingResponse с распознанным текстом в выбранном формате
+        
+    ## Raises:
+        HTTPException: При ошибке распознавания или некорректных параметрах
+        
+    #### Examples:
+        >>> # Базовое распознавание
+        >>> response = await transcribe_file(
+        ...     config=config,
+        ...     model_manager=model_manager,
+        ...     request=request,
+        ...     audio=audio_file,
+        ...     language="ru",
+        ...     response_format="text"
+        ... )
+        >>> print(response)
+        {
+            "text": "<ТЕКСТ ИЗ АУДИОФАЙЛА>"
+        }
+    """
     if model is None:
         model = config.whisper.model
     if language is None:

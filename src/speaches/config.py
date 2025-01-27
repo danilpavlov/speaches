@@ -15,12 +15,11 @@ BYTES_PER_SECOND = SAMPLES_PER_SECOND * BYTES_PER_SAMPLE
 
 
 class DiarizationConfig(BaseModel):
-    model_name: str = Field(default="pyannote/speaker-diarization-3.1")
-    # auth_token: Optional[str] = None
-    auth_token: Optional[str] = Field(default=None)
+    model: str = Field(default="pyannote/speaker-diarization-3.1")
+    # auth_token: Optional[str] = None)
     device: str = Field(default="cpu")
-    min_speakers: int = 1
-    max_speakers: int = 2
+    min_speakers: int = Field(default=1)
+    max_speakers: int = Field(default=2)
     
     @field_validator('device')
     def validate_device(cls, value: str) -> str:
@@ -35,6 +34,7 @@ class DiarizationConfig(BaseModel):
             
             gpu_count = int(os.popen("nvidia-smi --list-gpus | wc -l").read().strip())
             assert int(device_and_id[1]) < gpu_count, f"Невозможно использовать cuda:{device_and_id[1]}! Доступно только {gpu_count} GPU."
+            return value
         elif device_and_id[0] in ['cpu']:
             return value
         else:
@@ -180,7 +180,7 @@ class Task(enum.StrEnum):
 class WhisperConfig(BaseModel):
     """See https://github.com/SYSTRAN/faster-whisper/blob/master/faster_whisper/transcribe.py#L599."""
 
-    model: str = Field(default="Systran/faster-whisper-small")
+    model: str = "h2oai/faster-whisper-large-v3-turbo"
     """
     Default HuggingFace model to use for transcription. Note, the model must support being ran using CTranslate2.
     This model will be used if no model is specified in the request.
@@ -216,17 +216,30 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(env_nested_delimiter="__")
 
-    api_key: str | None = None
+    api_key: str | None = Field(None)
+    hf_api_token: str = Field(alias='HF_API_TOKEN')
     """
     If set, the API key will be required for all requests.
     """
-    log_level: str = "debug"
+    log_level: str = Field(alias='LOG_LEVEL', default="debug")
     """
     Logging level. One of: 'debug', 'info', 'warning', 'error', 'critical'.
     """
     host: str = Field(alias="UVICORN_HOST", default="0.0.0.0")
     port: int = Field(alias="UVICORN_PORT", default=8000)
-    allow_origins: list[str] | None = None
+    allow_origins: list[str] | None = Field(aliast='ALLOW_ORIGINS', default=["*"])
+    
+    @field_validator('allow_origins')
+    def validate_allow_origins(cls, value: list[str] | str) -> list[str] | None:
+        if isinstance(value, str):
+            value = value.split(',')
+        if isinstance(value, list):
+            if value == ["*"]:
+                return value
+            for origin in value:
+                assert origin.startswith("http://") or origin.startswith("https://"), f"Invalid origin: {origin}"
+            return value
+        return None
     """
     https://docs.pydantic.dev/latest/concepts/pydantic_settings/#parsing-environment-variable-values
     Usage:
@@ -301,5 +314,3 @@ class Config(BaseSettings):
         elif isinstance(value, bool):
             return value
         return False
-    
-CONFIG = Config()
