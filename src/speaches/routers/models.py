@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["models"])
 
 
-@router.get("/v1/models")
+@router.get("/v1/models", summary='Получить список доступных моделей')
 def get_models() -> ListModelsResponse:
     whisper_models = list(list_whisper_models())
     return ListModelsResponse(data=whisper_models)
