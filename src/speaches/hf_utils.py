@@ -1,3 +1,7 @@
+"""
+Модуль для работы с Hugging Face Hub, включая загрузку и управление моделями.
+"""
+
 from collections.abc import Generator
 from functools import lru_cache
 import json
@@ -20,15 +24,39 @@ TASK_NAME = "automatic-speech-recognition"
 
 
 def list_local_model_ids() -> list[str]:
+    """
+    Description
+        Возвращает список локальных идентификаторов моделей.
+
+    Returns:
+        Список строк с идентификаторами моделей.
+    """
     model_dirs = list(Path(HF_HUB_CACHE).glob("models--*"))
     return [model_id_from_path(model_dir) for model_dir in model_dirs]
 
 
 def does_local_model_exist(model_id: str) -> bool:
+    """
+    Description
+        Проверяет, существует ли локальная модель с заданным идентификатором.
+
+    Args:
+        model_id: Идентификатор модели.
+
+    Returns:
+        Булево значение, указывающее на существование модели.
+    """
     return model_id in list_local_model_ids()
 
 
 def list_whisper_models() -> Generator[Model, None, None]:
+    """
+    Description
+        Возвращает генератор моделей Whisper.
+
+    Returns:
+        Генератор объектов Model.
+    """
     models = huggingface_hub.list_models(library="ctranslate2", tags="automatic-speech-recognition", cardData=True)
     models = list(models)
     models.sort(key=lambda model: model.downloads or -1, reverse=True)
@@ -55,6 +83,13 @@ def list_whisper_models() -> Generator[Model, None, None]:
 def list_local_whisper_models() -> Generator[
     tuple[huggingface_hub.CachedRepoInfo, huggingface_hub.ModelCardData], None, None
 ]:
+    """
+    Description
+        Возвращает генератор локальных моделей Whisper.
+
+    Returns:
+        Генератор кортежей с информацией о кэше и данными модели.
+    """
     hf_cache = huggingface_hub.scan_cache_dir()
     hf_models = [repo for repo in list(hf_cache.repos) if repo.repo_type == "model"]
     for model in hf_models:
@@ -63,7 +98,6 @@ def list_local_whisper_models() -> Generator[
         if cached_readme_file:
             readme_file_path = Path(cached_readme_file.file_path)
         else:
-            # NOTE: the README.md doesn't get downloaded when `WhisperModel` is called
             logger.debug(f"Model {model.repo_id} does not have a README.md file. Downloading it.")
             readme_file_path = Path(huggingface_hub.hf_hub_download(model.repo_id, "README.md"))
 
@@ -78,6 +112,16 @@ def list_local_whisper_models() -> Generator[
 
 
 def model_id_from_path(repo_path: Path) -> str:
+    """
+    Description
+        Возвращает идентификатор модели из пути к репозиторию.
+
+    Args:
+        repo_path: Путь к репозиторию.
+
+    Returns:
+        Строка с идентификатором модели.
+    """
     repo_type, repo_id = repo_path.name.split("--", maxsplit=1)
     repo_type = repo_type[:-1]  # "models" -> "model"
     assert repo_type == "model"
@@ -86,6 +130,13 @@ def model_id_from_path(repo_path: Path) -> str:
 
 
 def get_whisper_models() -> Generator[Model, None, None]:
+    """
+    Description
+        Возвращает генератор моделей Whisper.
+
+    Returns:
+        Генератор объектов Model.
+    """
     models = huggingface_hub.list_models(library="ctranslate2", tags="automatic-speech-recognition", cardData=True)
     models = list(models)
     models.sort(key=lambda model: model.downloads or -1, reverse=True)
@@ -119,6 +170,17 @@ PIPER_VOICE_QUALITY_SAMPLE_RATE_MAP: dict[PiperVoiceQuality, int] = {
 
 
 def get_model_path(model_id: str, *, cache_dir: str | Path | None = None) -> Path | None:
+    """
+    Description
+        Возвращает путь к модели по ее идентификатору.
+
+    Args:
+        model_id: Идентификатор модели.
+        cache_dir: Директория кэша.
+
+    Returns:
+        Путь к модели или None, если модель не найдена.
+    """
     if cache_dir is None:
         cache_dir = HF_HUB_CACHE
 
@@ -155,6 +217,18 @@ def get_model_path(model_id: str, *, cache_dir: str | Path | None = None) -> Pat
 def list_model_files(
     model_id: str, glob_pattern: str = "**/*", *, cache_dir: str | Path | None = None
 ) -> Generator[Path, None, None]:
+    """
+    Description
+        Возвращает генератор файлов модели по ее идентификатору.
+
+    Args:
+        model_id: Идентификатор модели.
+        glob_pattern: Паттерн для поиска файлов.
+        cache_dir: Директория кэша.
+
+    Returns:
+        Генератор путей к файлам модели.
+    """
     repo_path = get_model_path(model_id, cache_dir=cache_dir)
     if repo_path is None:
         return None
@@ -165,6 +239,13 @@ def list_model_files(
 
 
 def list_piper_models() -> Generator[Voice, None, None]:
+    """
+    Description
+        Возвращает генератор моделей Piper.
+
+    Returns:
+        Генератор объектов Voice.
+    """
     model_id = "rhasspy/piper-voices"
     model_weights_files = list_model_files(model_id, glob_pattern="**/*.onnx")
     for model_weights_file in model_weights_files:
@@ -180,11 +261,15 @@ def list_piper_models() -> Generator[Voice, None, None]:
         )
 
 
-# NOTE: It's debatable whether caching should be done here or by the caller. Should be revisited.
-
-
 @lru_cache
 def read_piper_voices_config() -> dict[str, Any]:
+    """
+    Description
+        Читает конфигурацию голосов Piper из файла.
+
+    Returns:
+        Словарь с конфигурацией голосов.
+    """
     voices_file = next(list_model_files("rhasspy/piper-voices", glob_pattern="**/voices.json"), None)
     if voices_file is None:
         raise FileNotFoundError("Could not find voices.json file")  # noqa: EM101
@@ -193,6 +278,16 @@ def read_piper_voices_config() -> dict[str, Any]:
 
 @lru_cache
 def get_piper_voice_model_file(voice: str) -> Path:
+    """
+    Description
+        Возвращает путь к файлу модели голоса Piper.
+
+    Args:
+        voice: Имя голоса.
+
+    Returns:
+        Путь к файлу модели.
+    """
     model_file = next(list_model_files("rhasspy/piper-voices", glob_pattern=f"**/{voice}.onnx"), None)
     if model_file is None:
         raise FileNotFoundError(f"Could not find model file for '{voice}' voice")
@@ -211,6 +306,16 @@ class PiperVoiceConfig(BaseModel):
 
 @lru_cache
 def read_piper_voice_config(voice: str) -> PiperVoiceConfig:
+    """
+    Description
+        Читает конфигурацию голоса Piper из файла.
+
+    Args:
+        voice: Имя голоса.
+
+    Returns:
+        Объект PiperVoiceConfig с конфигурацией голоса.
+    """
     model_config_file = next(list_model_files("rhasspy/piper-voices", glob_pattern=f"**/{voice}.onnx.json"), None)
     if model_config_file is None:
         raise FileNotFoundError(f"Could not find config file for '{voice}' voice")
@@ -218,6 +323,13 @@ def read_piper_voice_config(voice: str) -> PiperVoiceConfig:
 
 
 def get_kokoro_model_path() -> Path:
+    """
+    Description
+        Возвращает путь к модели Kokoro.
+
+    Returns:
+        Путь к файлу модели.
+    """
     file_name = "kokoro-v0_19.onnx"
     onnx_files = list(list_model_files("hexgrad/Kokoro-82M", glob_pattern=f"**/{file_name}"))
     if len(onnx_files) == 0:
@@ -226,23 +338,20 @@ def get_kokoro_model_path() -> Path:
 
 
 def download_kokoro_model() -> None:
+    """
+    Description
+        Загружает модель Kokoro и файл голосов.
+
+    Raises:
+        ValueError: Если не удалось найти файл модели.
+    """
     model_id = "hexgrad/Kokoro-82M"
     model_repo_path = Path(
         huggingface_hub.snapshot_download(model_id, repo_type="model", allow_patterns=["kokoro-v0_19.onnx"])
     )
-    # HACK
     res = httpx.get(
         "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json", follow_redirects=True
     ).raise_for_status()
     voices_path = model_repo_path / "voices.json"
     voices_path.touch(exist_ok=True)
     voices_path.write_bytes(res.content)
-
-
-# alternative implementation that uses `huggingface_hub.scan_cache_dir`. Slightly cleaner but much slower
-# def list_local_model_ids() -> list[str]:
-#     start = time.perf_counter()
-#     hf_cache = huggingface_hub.scan_cache_dir()
-#     logger.debug(f"Scanned HuggingFace cache in {time.perf_counter() - start:.2f} seconds")
-#     hf_models = [repo for repo in list(hf_cache.repos) if repo.repo_type == "model"]
-#     return [model.repo_id for model in hf_models]

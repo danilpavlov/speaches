@@ -1,3 +1,7 @@
+"""
+Модуль для создания Gradio интерфейса для взаимодействия с API Speaches.
+"""
+
 from collections.abc import AsyncGenerator
 from pathlib import Path
 import platform
@@ -26,14 +30,35 @@ DEFAULT_TEXT = "A rainbow is an optical phenomenon caused by refraction, interna
 
 
 def base_url_from_gradio_req(request: gr.Request, config: Config) -> str:
+    """
+    Description
+        Получает базовый URL из запроса Gradio.
+
+    Args:
+        request: Запрос Gradio.
+        config: Конфигурация.
+
+    Returns:
+        Базовый URL.
+    """
     if config.loopback_host_url is not None and len(config.loopback_host_url) > 0:
         return config.loopback_host_url
-    # NOTE: `request.request.url` seems to always have a path of "/gradio_api/queue/join"
     assert request.request is not None
     return f"{request.request.url.scheme}://{request.request.url.netloc}"
 
 
 def http_client_from_gradio_req(request: gr.Request, config: Config) -> httpx.AsyncClient:
+    """
+    Description
+        Создает HTTP клиент из запроса Gradio.
+
+    Args:
+        request: Запрос Gradio.
+        config: Конфигурация.
+
+    Returns:
+        Объект httpx.AsyncClient.
+    """
     base_url = base_url_from_gradio_req(request, config)
     return httpx.AsyncClient(
         base_url=base_url,
@@ -43,14 +68,50 @@ def http_client_from_gradio_req(request: gr.Request, config: Config) -> httpx.As
 
 
 def openai_client_from_gradio_req(request: gr.Request, config: Config) -> AsyncOpenAI:
-    base_url = base_url_from_gradio_req(request)
+    """
+    Description
+        Создает OpenAI клиент из запроса Gradio.
+
+    Args:
+        request: Запрос Gradio.
+        config: Конфигурация.
+
+    Returns:
+        Объект AsyncOpenAI.
+    """
+    base_url = base_url_from_gradio_req(request, config)
     return AsyncOpenAI(base_url=f"{base_url}/v1", api_key=config.api_key if config.api_key else "cant-be-empty")
 
 
 def create_gradio_demo(config: Config) -> gr.Blocks:  # noqa: C901, PLR0915
+    """
+    Description
+        Создает Gradio интерфейс для взаимодействия с API Speaches.
+
+    Args:
+        config: Конфигурация.
+
+    Returns:
+        Объект gr.Blocks.
+    """
     async def whisper_handler(
         file_path: str, model: str, task: Task, temperature: float, stream: bool, request: gr.Request
     ) -> AsyncGenerator[str, None]:
+        """
+        Description
+            Обрабатывает запросы Whisper.
+
+        Args:
+            file_path: Путь к аудио файлу.
+            model: Модель Whisper.
+            task: Задача (TRANSCRIBE или TRANSLATE).
+            temperature: Температура генерации.
+            stream: Флаг потоковой передачи.
+            request: Запрос Gradio.
+
+        Returns:
+            Асинхронный генератор строк с результатами транскрипции.
+        """
         http_client = http_client_from_gradio_req(request, config)
         if task == Task.TRANSCRIBE:
             endpoint = TRANSCRIPTION_ENDPOINT
@@ -68,6 +129,20 @@ def create_gradio_demo(config: Config) -> gr.Blocks:  # noqa: C901, PLR0915
     async def audio_task(
         http_client: httpx.AsyncClient, file_path: str, endpoint: str, temperature: float, model: str
     ) -> str:
+        """
+        Description
+            Выполняет аудио задачу (транскрипция или перевод).
+
+        Args:
+            http_client: HTTP клиент.
+            file_path: Путь к аудио файлу.
+            endpoint: Конечная точка API.
+            temperature: Температура генерации.
+            model: Модель Whisper.
+
+        Returns:
+            Строка с результатом задачи.
+        """
         with Path(file_path).open("rb") as file:  # noqa: ASYNC230
             response = await http_client.post(
                 endpoint,
@@ -85,6 +160,20 @@ def create_gradio_demo(config: Config) -> gr.Blocks:  # noqa: C901, PLR0915
     async def streaming_audio_task(
         http_client: httpx.AsyncClient, file_path: str, endpoint: str, temperature: float, model: str
     ) -> AsyncGenerator[str, None]:
+        """
+        Description
+            Выполняет потоковую аудио задачу (транскрипция или перевод).
+
+        Args:
+            http_client: HTTP клиент.
+            file_path: Путь к аудио файлу.
+            endpoint: Конечная точка API.
+            temperature: Температура генерации.
+            model: Модель Whisper.
+
+        Returns:
+            Асинхронный генератор строк с результатами задачи.
+        """
         with Path(file_path).open("rb") as file:  # noqa: ASYNC230
             kwargs = {
                 "files": {"file": file},
@@ -100,6 +189,16 @@ def create_gradio_demo(config: Config) -> gr.Blocks:  # noqa: C901, PLR0915
                     yield event.data
 
     async def update_whisper_model_dropdown(request: gr.Request) -> gr.Dropdown:
+        """
+        Description
+            Обновляет выпадающий список моделей Whisper.
+
+        Args:
+            request: Запрос Gradio.
+
+        Returns:
+            Объект gr.Dropdown с обновленным списком моделей.
+        """
         openai_client = openai_client_from_gradio_req(request, config)
         models = (await openai_client.models.list()).data
         model_names: list[str] = [model.id for model in models]
@@ -114,6 +213,17 @@ def create_gradio_demo(config: Config) -> gr.Blocks:  # noqa: C901, PLR0915
         )
 
     async def update_voices_and_language_dropdown(model_id: str | None, request: gr.Request) -> dict:
+        """
+        Description
+            Обновляет выпадающий список голосов и языков.
+
+        Args:
+            model_id: Идентификатор модели.
+            request: Запрос Gradio.
+
+        Returns:
+            Словарь с обновленными выпадающими списками голосов и языков.
+        """
         params = httpx.QueryParams({"model_id": model_id})
         http_client = http_client_from_gradio_req(request, config)
         res = (await http_client.get("/v1/audio/speech/voices", params=params)).raise_for_status()
@@ -133,6 +243,23 @@ def create_gradio_demo(config: Config) -> gr.Blocks:  # noqa: C901, PLR0915
         sample_rate: int | None,
         request: gr.Request,
     ) -> Path:
+        """
+        Description
+            Обрабатывает запросы синтеза речи.
+
+        Args:
+            text: Текст для синтеза.
+            model: Модель синтеза речи.
+            voice: Голос для синтеза.
+            language: Язык текста.
+            response_format: Формат ответа.
+            speed: Скорость синтеза.
+            sample_rate: Частота дискретизации.
+            request: Запрос Gradio.
+
+        Returns:
+            Путь к файлу с синтезированной речью.
+        """
         openai_client = openai_client_from_gradio_req(request, config)
         res = await openai_client.audio.speech.create(
             input=text,

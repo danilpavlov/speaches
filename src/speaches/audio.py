@@ -1,3 +1,7 @@
+"""
+Модуль для обработки аудио данных, включая ресемплирование и конвертацию форматов.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -23,6 +27,18 @@ logger = logging.getLogger(__name__)
 
 # aip 'Write a function `resample_audio` which would take in RAW PCM 16-bit signed, little-endian audio data represented as bytes (`audio_bytes`) and resample it (either downsample or upsample) from `sample_rate` to `target_sample_rate` using numpy'  # noqa: E501
 def resample_audio(audio_bytes: bytes, sample_rate: int, target_sample_rate: int) -> bytes:
+    """
+    Description
+        Ресемплирует аудио данные из одного частотного диапазона в другой.
+
+    Args:
+        audio_bytes: Аудио данные в формате байтов.
+        sample_rate: Исходная частота дискретизации.
+        target_sample_rate: Целевая частота дискретизации.
+
+    Returns:
+        Ресемплированные аудио данные в формате байтов.
+    """
     audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
     duration = len(audio_data) / sample_rate
     target_length = int(duration * target_sample_rate)
@@ -56,6 +72,16 @@ def convert_audio_format(
 
 
 def audio_samples_from_file(file: BinaryIO) -> NDArray[np.float32]:
+    """
+    Description
+        Читает аудио данные из файла и возвращает их в виде массива.
+
+    Args:
+        file: Файл с аудио данными.
+
+    Returns:
+        Массив аудио данных.
+    """
     audio_and_sample_rate = sf.read(
         file,
         format="RAW",
@@ -70,6 +96,9 @@ def audio_samples_from_file(file: BinaryIO) -> NDArray[np.float32]:
 
 
 class Audio:
+    """
+    Класс для представления аудио данных.
+    """
     def __init__(
         self,
         data: NDArray[np.float32] = np.array([], dtype=np.float32),
@@ -90,17 +119,35 @@ class Audio:
         return len(self.data) / SAMPLES_PER_SECOND
 
     def after(self, ts: float) -> Audio:
+        """
+        Description
+            Возвращает аудио данные после заданного времени.
+
+        Args:
+            ts: Время в секундах.
+
+        Returns:
+            Объект Audio с аудио данными после заданного времени.
+        """
         assert ts <= self.duration
         return Audio(self.data[int(ts * SAMPLES_PER_SECOND) :], start=ts)
 
     def extend(self, data: NDArray[np.float32]) -> None:
-        # logger.debug(f"Extending audio by {len(data) / SAMPLES_PER_SECOND:.2f}s")
+        """
+        Description
+            Расширяет аудио данные новыми данными.
+
+        Args:
+            data: Новые аудио данные.
+        """
         self.data = np.append(self.data, data)
-        # logger.debug(f"Audio duration: {self.duration:.2f}s")
 
 
 # TODO: trim data longer than x
 class AudioStream(Audio):
+    """
+    Класс для представления потоковых аудио данных.
+    """
     def __init__(
         self,
         data: NDArray[np.float32] = np.array([], dtype=np.float32),
@@ -112,17 +159,38 @@ class AudioStream(Audio):
         self.modify_event = asyncio.Event()
 
     def extend(self, data: NDArray[np.float32]) -> None:
+        """
+        Description
+            Расширяет потоковые аудио данные новыми данными.
+
+        Args:
+            data: Новые аудио данные.
+        """
         assert not self.closed
         super().extend(data)
         self.modify_event.set()
 
     def close(self) -> None:
+        """
+        Description
+            Закрывает поток аудио данных.
+        """
         assert not self.closed
         self.closed = True
         self.modify_event.set()
         logger.info("AudioStream closed")
 
     async def chunks(self, min_duration: float) -> AsyncGenerator[NDArray[np.float32], None]:
+        """
+        Description
+            Возвращает чанки аудио данных минимальной длительности.
+
+        Args:
+            min_duration: Минимальная длительность чанка в секундах.
+
+        Returns:
+            Асинхронный генератор чанков аудио данных.
+        """
         i = 0.0  # end time of last chunk
         while True:
             await self.modify_event.wait()

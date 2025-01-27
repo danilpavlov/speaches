@@ -1,5 +1,6 @@
-# Resources:
-# - https://github.com/snakers4/silero-vad
+"""
+Модуль для обработки запросов обнаружения голосовой активности (VAD) с использованием модели Silero VAD.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +20,6 @@ from speaches.dependencies import AudioFileDependency  # noqa: TC001
 SAMPLE_RATE = 16000
 MS_SAMPLE_RATE = SAMPLE_RATE // 1000
 
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["voice-activity-detection"])
@@ -31,6 +31,16 @@ class SpeechTimestamp(BaseModel):
 
 
 def to_ms_speech_timestamps(speech_timestamps: list[SpeechTimestamp]) -> list[SpeechTimestamp]:
+    """
+    Description
+        Преобразует временные метки речи в миллисекунды.
+
+    Args:
+        speech_timestamps: Список временных меток речи.
+
+    Returns:
+        Список временных меток речи в миллисекундах.
+    """
     for i in range(len(speech_timestamps)):
         speech_timestamps[i].start = speech_timestamps[i].start // MS_SAMPLE_RATE
         speech_timestamps[i].end = speech_timestamps[i].end // MS_SAMPLE_RATE
@@ -88,6 +98,23 @@ def detect_speech_timestamps(
         int, Form(ge=0, description="""Final speech chunks are padded by speech_pad_ms each side""")
     ] = 0,
 ) -> list[SpeechTimestamp]:
+    """
+    Description
+        Обнаруживает временные метки речи в аудио файле с использованием модели Silero VAD.
+
+    Args:
+        audio: Аудио файл.
+        model: Имя модели.
+        threshold: Порог вероятности для определения речи.
+        neg_threshold: Порог вероятности для определения конца речи.
+        min_speech_duration_ms: Минимальная длительность речевых сегментов в миллисекундах.
+        max_speech_duration_s: Максимальная длительность речевых сегментов в секундах.
+        min_silence_duration_ms: Минимальная длительность тишины в конце каждого речевого сегмента.
+        speech_pad_ms: Длительность паддинга для речевых сегментов.
+
+    Returns:
+        Список временных меток речи.
+    """
     vad_options = VadOptions(
         threshold=threshold,
         neg_threshold=neg_threshold,  # pyright: ignore[reportArgumentType]

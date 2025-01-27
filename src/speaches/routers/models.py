@@ -1,3 +1,7 @@
+"""
+Модуль для обработки запросов, связанных с моделями, таких как получение списка доступных моделей и информации о конкретной модели.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated
@@ -23,15 +27,34 @@ router = APIRouter(tags=["models"])
 
 @router.get("/v1/models", summary='Получить список доступных моделей')
 def get_models() -> ListModelsResponse:
+    """
+    Description
+        Возвращает список доступных моделей.
+
+    Returns:
+        Объект ListModelsResponse с данными о моделях.
+    """
     whisper_models = list(list_whisper_models())
     return ListModelsResponse(data=whisper_models)
 
 
 @router.get("/v1/models/{model_name:path}")
 def get_model(
-    # NOTE: `examples` doesn't work https://github.com/tiangolo/fastapi/discussions/10537
     model_name: Annotated[str, Path(example="Systran/faster-distil-whisper-large-v3")],
 ) -> Model:
+    """
+    Description
+        Возвращает информацию о конкретной модели.
+
+    Args:
+        model_name: Имя модели.
+
+    Returns:
+        Объект Model с информацией о модели.
+
+    Raises:
+        HTTPException: Если модель не найдена.
+    """
     models = huggingface_hub.list_models(
         model_name=model_name, library="ctranslate2", tags="automatic-speech-recognition", cardData=True
     )

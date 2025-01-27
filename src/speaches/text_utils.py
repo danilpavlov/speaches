@@ -1,3 +1,7 @@
+"""
+Модуль для обработки текстовых данных, включая сегментацию и форматирование транскрипций.
+"""
+
 from __future__ import annotations
 
 import re
@@ -10,6 +14,9 @@ if TYPE_CHECKING:
 
 
 class Transcription:
+    """
+    Класс для представления транскрипции.
+    """
     def __init__(self, words: list[TranscriptionWord] = []) -> None:
         self.words: list[TranscriptionWord] = []
         self.extend(words)
@@ -31,9 +38,26 @@ class Transcription:
         return self.end - self.start
 
     def after(self, seconds: float) -> Transcription:
+        """
+        Description
+            Возвращает транскрипцию после заданного времени.
+
+        Args:
+            seconds: Время в секундах.
+
+        Returns:
+            Объект Transcription с транскрипцией после заданного времени.
+        """
         return Transcription(words=[word for word in self.words if word.start > seconds])
 
     def extend(self, words: list[TranscriptionWord]) -> None:
+        """
+        Description
+            Расширяет транскрипцию новыми словами.
+
+        Args:
+            words: Список новых слов.
+        """
         self._ensure_no_word_overlap(words)
         self.words.extend(words)
 
@@ -52,12 +76,32 @@ class Transcription:
 
 
 def is_eos(text: str) -> bool:
-    if text.endswith("..."):
+    """
+    Description
+        Проверяет, является ли текст концом предложения.
+
+    Args:
+        text: Текст для проверки.
+
+    Returns:
+        Булево значение, указывающее на конец предложения.
+    """
+    if (text.endswith("...")):
         return False
     return any(text.endswith(punctuation_symbol) for punctuation_symbol in ".?!")
 
 
 def to_full_sentences(words: list[TranscriptionWord]) -> list[list[TranscriptionWord]]:
+    """
+    Description
+        Преобразует список слов в список полных предложений.
+
+    Args:
+        words: Список слов.
+
+    Returns:
+        Список списков слов, представляющих полные предложения.
+    """
     sentences: list[list[TranscriptionWord]] = [[]]
     for word in words:
         sentences[-1].append(word)
@@ -69,18 +113,58 @@ def to_full_sentences(words: list[TranscriptionWord]) -> list[list[Transcription
 
 
 def word_to_text(words: list[TranscriptionWord]) -> str:
+    """
+    Description
+        Преобразует список слов в текст.
+
+    Args:
+        words: Список слов.
+
+    Returns:
+        Строка текста.
+    """
     return "".join(word.word for word in words)
 
 
 def words_to_text_w_ts(words: list[TranscriptionWord]) -> str:
+    """
+    Description
+        Преобразует список слов в текст с временными метками.
+
+    Args:
+        words: Список слов.
+
+    Returns:
+        Строка текста с временными метками.
+    """
     return "".join(f"{word.word}({word.start:.2f}-{word.end:.2f})" for word in words)
 
 
 def segments_to_text(segments: Iterable[TranscriptionSegment]) -> str:
+    """
+    Description
+        Преобразует сегменты транскрипции в текст.
+
+    Args:
+        segments: Сегменты транскрипции.
+
+    Returns:
+        Строка текста.
+    """
     return "".join(segment.text for segment in segments).strip()
 
 
 def srt_format_timestamp(ts: float) -> str:
+    """
+    Description
+        Форматирует временную метку в формате SRT.
+
+    Args:
+        ts: Временная метка в секундах.
+
+    Returns:
+        Строка временной метки в формате SRT.
+    """
     hours = ts // 3600
     minutes = (ts % 3600) // 60
     seconds = ts % 60
@@ -89,6 +173,16 @@ def srt_format_timestamp(ts: float) -> str:
 
 
 def vtt_format_timestamp(ts: float) -> str:
+    """
+    Description
+        Форматирует временную метку в формате VTT.
+
+    Args:
+        ts: Временная метка в секундах.
+
+    Returns:
+        Строка временной метки в формате VTT.
+    """
     hours = ts // 3600
     minutes = (ts % 3600) // 60
     seconds = ts % 60
@@ -97,6 +191,17 @@ def vtt_format_timestamp(ts: float) -> str:
 
 
 def segments_to_vtt(segment: TranscriptionSegment, i: int) -> str:
+    """
+    Description
+        Преобразует сегмент транскрипции в формат VTT.
+
+    Args:
+        segment: Сегмент транскрипции.
+        i: Индекс сегмента.
+
+    Returns:
+        Строка сегмента в формате VTT.
+    """
     start = segment.start if i > 0 else 0.0
     result = f"{vtt_format_timestamp(start)} --> {vtt_format_timestamp(segment.end)}\n{segment.text}\n\n"
 
@@ -107,17 +212,48 @@ def segments_to_vtt(segment: TranscriptionSegment, i: int) -> str:
 
 
 def segments_to_srt(segment: TranscriptionSegment, i: int) -> str:
+    """
+    Description
+        Преобразует сегмент транскрипции в формат SRT.
+
+    Args:
+        segment: Сегмент транскрипции.
+        i: Индекс сегмента.
+
+    Returns:
+        Строка сегмента в формате SRT.
+    """
     return f"{i + 1}\n{srt_format_timestamp(segment.start)} --> {srt_format_timestamp(segment.end)}\n{segment.text}\n\n"
 
 
 def canonicalize_word(text: str) -> str:
+    """
+    Description
+        Приводит слово к каноническому виду.
+
+    Args:
+        text: Слово для канонизации.
+
+    Returns:
+        Каноническое слово.
+    """
     text = text.lower()
-    # Remove non-alphabetic characters using regular expression
     text = re.sub(r"[^a-z]", "", text)
     return text.lower().strip().strip(".,?!")
 
 
 def common_prefix(a: list[TranscriptionWord], b: list[TranscriptionWord]) -> list[TranscriptionWord]:
+    """
+    Description
+        Находит общий префикс в двух списках слов.
+
+    Args:
+        a: Первый список слов.
+        b: Второй список слов.
+
+    Returns:
+        Список слов, представляющих общий префикс.
+    """
     i = 0
     while i < len(a) and i < len(b) and canonicalize_word(a[i].word) == canonicalize_word(b[i].word):
         i += 1

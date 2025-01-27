@@ -1,3 +1,7 @@
+"""
+Модуль для определения зависимостей, используемых в приложении FastAPI.
+"""
+
 from functools import lru_cache
 import logging
 from typing import Annotated
@@ -34,6 +38,13 @@ logger = logging.getLogger(__name__)
 # WARN: Any new module that ends up calling this function directly (not through `FastAPI` dependency injection) should be patched in `tests/conftest.py`  # noqa: E501
 @lru_cache
 def get_config() -> Config:
+    """
+    Description
+        Возвращает конфигурацию приложения.
+
+    Returns:
+        Объект Config с настройками приложения.
+    """
     return Config()
 
 
@@ -42,6 +53,13 @@ ConfigDependency = Annotated[Config, Depends(get_config)]
 
 @lru_cache
 def get_model_manager() -> WhisperModelManager:
+    """
+    Description
+        Возвращает менеджер моделей Whisper.
+
+    Returns:
+        Объект WhisperModelManager.
+    """
     config = get_config()
     print(config.whisper)
     return WhisperModelManager(config.whisper)
@@ -52,6 +70,13 @@ ModelManagerDependency = Annotated[WhisperModelManager, Depends(get_model_manage
 
 @lru_cache
 def get_piper_model_manager() -> PiperModelManager:
+    """
+    Description
+        Возвращает менеджер моделей Piper.
+
+    Returns:
+        Объект PiperModelManager.
+    """
     config = get_config()
     return PiperModelManager(config.whisper.ttl, config.enable_dynamic_loading)  # HACK: should have its own config
 
@@ -61,6 +86,13 @@ PiperModelManagerDependency = Annotated[PiperModelManager, Depends(get_piper_mod
 
 @lru_cache
 def get_kokoro_model_manager() -> KokoroModelManager:
+    """
+    Description
+        Возвращает менеджер моделей Kokoro.
+
+    Returns:
+        Объект KokoroModelManager.
+    """
     config = get_config()
     return KokoroModelManager(config.whisper.ttl, config.enable_dynamic_loading)  # HACK: should have its own config
 
@@ -73,6 +105,17 @@ security = HTTPBearer()
 async def verify_api_key(
     config: ConfigDependency, credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]
 ) -> None:
+    """
+    Description
+        Проверяет API ключ.
+
+    Args:
+        config: Конфигурация.
+        credentials: Учетные данные авторизации.
+
+    Raises:
+        HTTPException: Если API ключ неверен.
+    """
     if credentials.credentials != config.api_key:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
@@ -80,10 +123,22 @@ async def verify_api_key(
 ApiKeyDependency = Depends(verify_api_key)
 
 
-# TODO: test async vs sync performance
 def audio_file_dependency(
     file: Annotated[UploadFile, Form()],
 ) -> NDArray[float32]:
+    """
+    Description
+        Декодирует аудио файл.
+
+    Args:
+        file: Загруженный аудио файл.
+
+    Returns:
+        Массив аудио данных.
+
+    Raises:
+        HTTPException: Если не удалось декодировать аудио файл.
+    """
     try:
         audio = decode_audio(file.file)
     except av.error.InvalidDataError as e:
@@ -94,7 +149,6 @@ def audio_file_dependency(
     except av.error.ValueError as e:
         raise HTTPException(
             status_code=400,
-            # TODO: list supported file types
             detail="Failed to decode audio. The provided file is likely empty.",
         ) from e
     except Exception as e:
@@ -111,6 +165,13 @@ AudioFileDependency = Annotated[NDArray[float32], Depends(audio_file_dependency)
 
 @lru_cache
 def get_completion_client() -> AsyncCompletions:
+    """
+    Description
+        Возвращает клиент для завершения чатов.
+
+    Returns:
+        Объект AsyncCompletions.
+    """
     config = get_config()
     oai_client = AsyncOpenAI(base_url=config.chat_completion_base_url, api_key=config.chat_completion_api_key)
     return oai_client.chat.completions
@@ -121,9 +182,15 @@ CompletionClientDependency = Annotated[AsyncCompletions, Depends(get_completion_
 
 @lru_cache
 def get_speech_client() -> AsyncSpeech:
+    """
+    Description
+        Возвращает клиент для синтеза речи.
+
+    Returns:
+        Объект AsyncSpeech.
+    """
     config = get_config()
     if config.speech_base_url is None:
-        # this might not work as expected if `speech_router` won't have shared state (access to the same `model_manager`) with the main FastAPI `app`. TODO: verify  # noqa: E501
         from speaches.routers.speech import (
             router as speech_router,
         )
@@ -142,9 +209,15 @@ SpeechClientDependency = Annotated[AsyncSpeech, Depends(get_speech_client)]
 
 @lru_cache
 def get_transcription_client() -> AsyncTranscriptions:
+    """
+    Description
+        Возвращает клиент для транскрипции аудио.
+
+    Returns:
+        Объект AsyncTranscriptions.
+    """
     config = get_config()
     if config.transcription_base_url is None:
-        # this might not work as expected if `transcription_router` won't have shared state (access to the same `model_manager`) with the main FastAPI `app`. TODO: verify  # noqa: E501
         from speaches.routers.stt import (
             router as stt_router,
         )
@@ -165,13 +238,16 @@ TranscriptionClientDependency = Annotated[AsyncTranscriptions, Depends(get_trans
 @lru_cache
 def get_diarization_model() -> Pipeline:
     """
-    Метод получения модели диаризации
-    
+    Description
+        Возвращает модель диаризации.
+
     Note:
-        - Немного неочевидный трюк с вызовом функции с аргументом по умолчанию, 
-            чтобы избежать проблем с множественной загрузкой модели
+        Немного неочевидный трюк с вызовом функции с аргументом по умолчанию, чтобы избежать проблем с множественной загрузкой модели.
+
+    Returns:
+        Объект Pipeline с моделью диаризации.
     """
-    config = get_config() # HACK
+    config = get_config()  # HACK
     diarization_pipeline = Pipeline.from_pretrained(
         config.diarization.model,
         use_auth_token=config.hf_api_token,

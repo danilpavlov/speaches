@@ -1,3 +1,7 @@
+"""
+Модуль для обработки запросов автоматического распознавания речи (ASR) с использованием моделей Whisper.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -44,12 +48,10 @@ from speaches.transcriber import audio_transcriber
 # Custom packages:
 from speaches.map_speakers import map_speakers_to_segments, DiarizationSegment
 
-
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable
 
     from faster_whisper.transcribe import TranscriptionInfo
-
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,18 @@ def segments_to_response(
     transcription_info: TranscriptionInfo,
     response_format: ResponseFormat,
 ) -> Response:
+    """
+    Description
+        Преобразует сегменты транскрипции в ответ в заданном формате.
+
+    Args:
+        segments: Сегменты транскрипции.
+        transcription_info: Информация о транскрипции.
+        response_format: Формат ответа.
+
+    Returns:
+        Ответ в заданном формате.
+    """
     segments = list(segments)
     match response_format:
         case ResponseFormat.TEXT:
@@ -86,6 +100,16 @@ def segments_to_response(
 
 
 def format_as_sse(data: str) -> str:
+    """
+    Description
+        Форматирует данные как Server-Sent Events (SSE).
+
+    Args:
+        data: Данные для форматирования.
+
+    Returns:
+        Отформатированные данные.
+    """
     return f"data: {data}\n\n"
 
 
@@ -94,6 +118,18 @@ def segments_to_streaming_response(
     transcription_info: TranscriptionInfo,
     response_format: ResponseFormat,
 ) -> StreamingResponse:
+    """
+    Description
+        Преобразует сегменты транскрипции в потоковый ответ в заданном формате.
+
+    Args:
+        segments: Сегменты транскрипции.
+        transcription_info: Информация о транскрипции.
+        response_format: Формат ответа.
+
+    Returns:
+        Потоковый ответ в заданном формате.
+    """
     def segment_responses() -> Generator[str, None, None]:
         for i, segment in enumerate(segments):
             if response_format == ResponseFormat.TEXT:
@@ -153,6 +189,24 @@ def translate_file(
     stream: Annotated[bool, Form()] = False,
     vad_filter: Annotated[bool, Form()] = False,
 ) -> Response | StreamingResponse:
+    """
+    Description
+        Переводит аудио файл на другой язык с использованием моделей Whisper.
+
+    Args:
+        config: Конфигурация.
+        model_manager: Менеджер моделей.
+        audio: Аудио файл.
+        model: Идентификатор модели.
+        prompt: Начальная подсказка.
+        response_format: Формат ответа.
+        temperature: Температура генерации.
+        stream: Флаг потоковой передачи.
+        vad_filter: Флаг фильтрации VAD.
+
+    Returns:
+        Response или StreamingResponse с переведенным текстом в выбранном формате.
+    """
     if model is None:
         model = config.whisper.model
     if response_format is None:
@@ -176,6 +230,16 @@ def translate_file(
 
 # HACK: Since Form() doesn't support `alias`, we need to use a workaround.
 async def get_timestamp_granularities(request: Request) -> TimestampGranularities:
+    """
+    Description
+        Получает значения timestamp_granularities из запроса.
+
+    Args:
+        request: Запрос.
+
+    Returns:
+        Значения timestamp_granularities.
+    """
     form = await request.form()
     if form.get("timestamp_granularities[]") is None:
         return DEFAULT_TIMESTAMP_GRANULARITIES
@@ -275,6 +339,14 @@ def transcribe_file(
 
 
 async def audio_receiver(ws: WebSocket, audio_stream: AudioStream) -> None:
+    """
+    Description
+        Получает аудио данные из WebSocket и добавляет их в аудио поток.
+
+    Args:
+        ws: WebSocket соединение.
+        audio_stream: Аудио поток.
+    """
     config = get_config()  # HACK
     try:
         while True:
@@ -316,6 +388,20 @@ async def transcribe_stream(
     temperature: Annotated[float, Query()] = 0.0,
     vad_filter: Annotated[bool, Query()] = False,
 ) -> None:
+    """
+    Description
+        Преобразует аудио поток в текст используя модели Whisper.
+
+    Args:
+        config: Конфигурация.
+        model_manager: Менеджер моделей.
+        ws: WebSocket соединение.
+        model: Идентификатор модели.
+        language: Язык распознавания.
+        response_format: Формат ответа.
+        temperature: Температура генерации.
+        vad_filter: Флаг фильтрации VAD.
+    """
     if model is None:
         model = config.whisper.model
     if language is None:

@@ -1,3 +1,7 @@
+"""
+Модуль для автоматического распознавания речи (ASR) с использованием модели Faster Whisper.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -17,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 class FasterWhisperASR:
+    """
+    Класс для автоматического распознавания речи с использованием модели Faster Whisper.
+    """
     def __init__(
         self,
         whisper: transcribe.WhisperModel,
@@ -30,8 +37,18 @@ class FasterWhisperASR:
         audio: Audio,
         prompt: str | None = None,
     ) -> tuple[Transcription, transcribe.TranscriptionInfo]:
+        """
+        Description
+            Выполняет распознавание речи.
+
+        Args:
+            audio: Аудио данные.
+            prompt: Начальная подсказка.
+
+        Returns:
+            Кортеж с объектом Transcription и информацией о транскрипции.
+        """
         start = time.perf_counter()
-        # NOTE: should `BatchedInferencePipeline` be used here?
         segments, transcription_info = self.whisper.transcribe(
             audio.data,
             initial_prompt=prompt,
@@ -54,9 +71,17 @@ class FasterWhisperASR:
         audio: Audio,
         prompt: str | None = None,
     ) -> tuple[Transcription, transcribe.TranscriptionInfo]:
-        """Wrapper around _transcribe so it can be used in async context."""
-        # is this the optimal way to execute a blocking call in an async context?
-        # TODO: verify performance when running inference on a CPU
+        """
+        Description
+            Асинхронно выполняет распознавание речи.
+
+        Args:
+            audio: Аудио данные.
+            prompt: Начальная подсказка.
+
+        Returns:
+            Кортеж с объектом Transcription и информацией о транскрипции.
+        """
         return await asyncio.get_running_loop().run_in_executor(
             None,
             self._transcribe,

@@ -1,3 +1,7 @@
+"""
+Модуль для транскрипции аудио данных с использованием модели Faster Whisper.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -16,11 +20,24 @@ logger = logging.getLogger(__name__)
 
 
 class LocalAgreement:
+    """
+    Класс для локального согласования транскрипций.
+    """
     def __init__(self) -> None:
         self.unconfirmed = Transcription()
 
     def merge(self, confirmed: Transcription, incoming: Transcription) -> list[TranscriptionWord]:
-        # https://github.com/ufal/whisper_streaming/blob/main/whisper_online.py#L264
+        """
+        Description
+            Объединяет подтвержденные и входящие транскрипции.
+
+        Args:
+            confirmed: Подтвержденная транскрипция.
+            incoming: Входящая транскрипция.
+
+        Returns:
+            Список слов из общего префикса.
+        """
         incoming = incoming.after(confirmed.end - 0.1)
         prefix = common_prefix(incoming.words, self.unconfirmed.words)
         logger.debug(f"Confirmed: {confirmed.text}")
@@ -37,11 +54,31 @@ class LocalAgreement:
 
 # TODO: needs a better name
 def needs_audio_after(confirmed: Transcription) -> float:
+    """
+    Description
+        Определяет, сколько аудио данных нужно после подтвержденной транскрипции.
+
+    Args:
+        confirmed: Подтвержденная транскрипция.
+
+    Returns:
+        Время в секундах.
+    """
     full_sentences = to_full_sentences(confirmed.words)
     return full_sentences[-1][-1].end if len(full_sentences) > 0 else 0.0
 
 
 def prompt(confirmed: Transcription) -> str | None:
+    """
+    Description
+        Возвращает подсказку для следующей транскрипции.
+
+    Args:
+        confirmed: Подтвержденная транскрипция.
+
+    Returns:
+        Строка с подсказкой или None.
+    """
     sentences = to_full_sentences(confirmed.words)
     return word_to_text(sentences[-1]) if len(sentences) > 0 else None
 
@@ -51,6 +88,18 @@ async def audio_transcriber(
     audio_stream: AudioStream,
     min_duration: float,
 ) -> AsyncGenerator[Transcription, None]:
+    """
+    Description
+        Асинхронно транскрибирует аудио данные из потока.
+
+    Args:
+        asr: Модель для автоматического распознавания речи.
+        audio_stream: Поток аудио данных.
+        min_duration: Минимальная длительность чанка в секундах.
+
+    Returns:
+        Асинхронный генератор транскрипций.
+    """
     local_agreement = LocalAgreement()
     full_audio = Audio()
     confirmed = Transcription()

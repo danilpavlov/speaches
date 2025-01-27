@@ -1,3 +1,7 @@
+"""
+Модуль для управления загрузкой и выгрузкой моделей Whisper, Piper и Kokoro.
+"""
+
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -21,9 +25,7 @@ if TYPE_CHECKING:
 
     from piper.voice import PiperVoice
 
-    from speaches.config import (
-        WhisperConfig
-    )
+    from speaches.config import WhisperConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,9 @@ logger = logging.getLogger(__name__)
 
 
 class SelfDisposingModel[T]:
+    """
+    Класс для автоматического управления временем жизни модели.
+    """
     def __init__(
         self, 
         model_id: str, 
@@ -50,6 +55,10 @@ class SelfDisposingModel[T]:
         self.model: T | None = None
 
     def unload(self) -> None:
+        """
+        Description
+            Выгружает модель из памяти.
+        """
         if isinstance(self.rlock, nullcontext):
             logger.info('Dynamic loading is disabled, skipping unload')
             return None
@@ -111,6 +120,9 @@ class SelfDisposingModel[T]:
 
 
 class WhisperModelManager:
+    """
+    Класс для управления моделями Whisper.
+    """
     def __init__(self, whisper_config: WhisperConfig, enable_dynamic_loading: bool = False) -> None:
         self.whisper_config = whisper_config
         self.loaded_models: OrderedDict[str, SelfDisposingModel[WhisperModel]] = OrderedDict()
@@ -125,7 +137,7 @@ class WhisperModelManager:
             compute_type=self.whisper_config.compute_type,
             cpu_threads=self.whisper_config.cpu_threads,
             num_workers=self.whisper_config.num_workers,
-            local_files_only=False # True, if you dont wont to load from the internet and check cache only
+            local_files_only=False  # True, if you don't want to load from the internet and check cache only
         )
 
     def _handle_model_unload(self, model_name: str) -> None:
@@ -134,6 +146,13 @@ class WhisperModelManager:
                 del self.loaded_models[model_name]
 
     def unload_model(self, model_name: str) -> None:
+        """
+        Description
+            Выгружает модель Whisper из памяти.
+
+        Args:
+            model_name: Имя модели.
+        """
         with self._lock:
             model = self.loaded_models.get(model_name)
             if model is None:
@@ -141,6 +160,16 @@ class WhisperModelManager:
             self.loaded_models[model_name].unload()
 
     def load_model(self, model_name: str) -> SelfDisposingModel[WhisperModel]:
+        """
+        Description
+            Загружает модель Whisper в память.
+
+        Args:
+            model_name: Имя модели.
+
+        Returns:
+            Объект SelfDisposingModel с загруженной моделью Whisper.
+        """
         with self._lock:
             logger.debug("Acquired lock")
             if model_name in self.loaded_models:
@@ -159,6 +188,9 @@ ONNX_PROVIDERS = ["CUDAExecutionProvider", "CPUExecutionProvider"]
 
 
 class PiperModelManager:
+    """
+    Класс для управления моделями Piper.
+    """
     def __init__(self, ttl: int, enable_dynamic_loading: bool = False) -> None:
         self.ttl = ttl
         self.loaded_models: OrderedDict[str, SelfDisposingModel[PiperVoice]] = OrderedDict()
@@ -179,6 +211,13 @@ class PiperModelManager:
                 del self.loaded_models[model_name]
 
     def unload_model(self, model_name: str) -> None:
+        """
+        Description
+            Выгружает модель Piper из памяти.
+
+        Args:
+            model_name: Имя модели.
+        """
         with self._lock:
             model = self.loaded_models.get(model_name)
             if model is None:
@@ -186,6 +225,16 @@ class PiperModelManager:
             self.loaded_models[model_name].unload()
 
     def load_model(self, model_name: str) -> SelfDisposingModel[PiperVoice]:
+        """
+        Description
+            Загружает модель Piper в память.
+
+        Args:
+            model_name: Имя модели.
+
+        Returns:
+            Объект SelfDisposingModel с загруженной моделью Piper.
+        """
         from piper.voice import PiperVoice
 
         with self._lock:
@@ -202,12 +251,14 @@ class PiperModelManager:
 
 
 class KokoroModelManager:
+    """
+    Класс для управления моделями Kokoro.
+    """
     def __init__(self, ttl: int, enable_dynamic_loading: bool = False) -> None:
         self.ttl = ttl
         self.loaded_models: OrderedDict[str, SelfDisposingModel[Kokoro]] = OrderedDict()
         self._lock = threading.Lock() if enable_dynamic_loading else nullcontext()
 
-    # TODO
     def _load_fn(self, _model_id: str) -> Kokoro:
         model_path = get_kokoro_model_path()
         voices_path = model_path.parent / "voices.json"
@@ -220,6 +271,13 @@ class KokoroModelManager:
                 del self.loaded_models[model_name]
 
     def unload_model(self, model_name: str) -> None:
+        """
+        Description
+            Выгружает модель Kokoro из памяти.
+
+        Args:
+            model_name: Имя модели.
+        """
         with self._lock:
             model = self.loaded_models.get(model_name)
             if model is None:
@@ -227,6 +285,16 @@ class KokoroModelManager:
             self.loaded_models[model_name].unload()
 
     def load_model(self, model_name: str) -> SelfDisposingModel[Kokoro]:
+        """
+        Description
+            Загружает модель Kokoro в память.
+
+        Args:
+            model_name: Имя модели.
+
+        Returns:
+            Объект SelfDisposingModel с загруженной моделью Kokoro.
+        """
         with self._lock:
             if model_name in self.loaded_models:
                 logger.debug(f"{model_name} model already loaded")

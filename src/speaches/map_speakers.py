@@ -1,3 +1,7 @@
+"""
+Модуль для сопоставления говорящих с сегментами транскрипции.
+"""
+
 from dataclasses import dataclass, asdict
 import json
 from typing import List, Optional
@@ -17,7 +21,17 @@ class DiarizationSegment:
     end: float
 
 def calculate_overlap(trans_seg: TranscriptionSegment, diar_seg: DiarizationSegment) -> float:
-    """Calculate the temporal overlap between a transcription and diarization segment."""
+    """
+    Description
+        Вычисляет временное перекрытие между сегментом транскрипции и сегментом диаризации.
+
+    Args:
+        trans_seg: Сегмент транскрипции.
+        diar_seg: Сегмент диаризации.
+
+    Returns:
+        Величина перекрытия во времени.
+    """
     overlap_start = max(trans_seg.start, diar_seg.start)
     overlap_end = min(trans_seg.end, diar_seg.end)
     return max(0, overlap_end - overlap_start)
@@ -27,7 +41,15 @@ def map_speakers_to_segments(
     diarization_segments: List[DiarizationSegment]
 ) -> str:
     """
-    Maps speakers to transcription segments and returns JSON string.
+    Description
+        Сопоставляет говорящих с сегментами транскрипции и возвращает JSON строку.
+
+    Args:
+        transcription_segments: Список сегментов транскрипции.
+        diarization_segments: Список сегментов диаризации.
+
+    Returns:
+        JSON строка с результатами сопоставления.
     """
     result = []
     

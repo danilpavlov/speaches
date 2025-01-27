@@ -1,3 +1,7 @@
+"""
+Модуль для обработки запросов синтеза речи (Text-to-Speech) с использованием моделей Kokoro и Piper.
+"""
+
 import logging
 from typing import Annotated, Literal, Self
 
@@ -43,6 +47,16 @@ router = APIRouter(tags=["speech-to-text"])
 
 
 def handle_openai_supported_model_ids(model_id: str) -> str:
+    """
+    Description
+        Обрабатывает поддерживаемые OpenAI идентификаторы моделей.
+
+    Args:
+        model_id: Идентификатор модели.
+
+    Returns:
+        Строка с идентификатором модели.
+    """
     if model_id in OPENAI_SUPPORTED_SPEECH_MODEL:
         logger.warning(f"{model_id} is not a valid model name. Using '{DEFAULT_MODEL_ID}' instead.")
         return DEFAULT_MODEL_ID
@@ -60,6 +74,16 @@ ModelId = Annotated[
 
 
 def handle_openai_supported_voices(voice_id: str) -> str:
+    """
+    Description
+        Обрабатывает поддерживаемые OpenAI идентификаторы голосов.
+
+    Args:
+        voice_id: Идентификатор голоса.
+
+    Returns:
+        Строка с идентификатором голоса.
+    """
     if voice_id in OPENAI_SUPPORTED_SPEECH_VOICE_NAMES:
         logger.warning(f"{voice_id} is not a valid voice id. Using '{DEFAULT_VOICE_ID}' instead.")
         return DEFAULT_VOICE_ID
@@ -70,6 +94,19 @@ VoiceId = Annotated[str, BeforeValidator(handle_openai_supported_voices)]  # TOD
 
 
 class CreateSpeechRequestBody(BaseModel):
+    """
+    Description
+        Модель данных для запроса создания синтеза речи.
+
+    Attributes:
+        model: Идентификатор модели.
+        input: Текст для генерации аудио.
+        voice: Идентификатор голоса.
+        language: Язык текста для генерации аудио.
+        response_format: Формат ответа.
+        speed: Скорость генерации аудио.
+        sample_rate: Частота дискретизации.
+    """
     model: ModelId = DEFAULT_MODEL_ID
     input: str = Field(
         ...,
@@ -110,6 +147,13 @@ Each quality has a different default sample rate:
 
     @model_validator(mode="after")
     def verify_voice_is_valid(self) -> Self:
+        """
+        Description
+            Проверяет, что голос является допустимым для выбранной модели.
+
+        Returns:
+            Объект CreateSpeechRequestBody.
+        """
         if self.model == "hexgrad/Kokoro-82M":
             assert self.voice in kokoro_utils.VOICE_IDS
         elif self.model == "rhasspy/piper-voices":
@@ -118,6 +162,13 @@ Each quality has a different default sample rate:
 
     @model_validator(mode="after")
     def validate_speed(self) -> Self:
+        """
+        Description
+            Проверяет, что скорость находится в допустимом диапазоне для выбранной модели.
+
+        Returns:
+            Объект CreateSpeechRequestBody.
+        """
         if self.model == "hexgrad/Kokoro-82M":
             assert 0.5 <= self.speed <= 2.0
         if self.model == "rhasspy/piper-voices":
@@ -213,6 +264,16 @@ async def synthesize(
 
 @router.get("/v1/audio/speech/voices", summary="Получить список доступных голосов")
 def list_voices(model_id: ModelId | None = None) -> list[Voice]:
+    """
+    Description
+        Возвращает список доступных голосов для заданной модели.
+
+    Args:
+        model_id: Идентификатор модели.
+
+    Returns:
+        Список объектов Voice.
+    """
     voices: list[Voice] = []
     if model_id == "hexgrad/Kokoro-82M" or model_id is None:
         kokoro_model_path = get_kokoro_model_path()

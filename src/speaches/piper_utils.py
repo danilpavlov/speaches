@@ -1,3 +1,7 @@
+"""
+Модуль для работы с моделью Piper, включая генерацию аудио.
+"""
+
 from collections.abc import Generator
 import logging
 import time
@@ -9,10 +13,22 @@ from speaches.audio import resample_audio
 logger = logging.getLogger(__name__)
 
 
-# TODO: async generator https://github.com/mikeshardmind/async-utils/blob/354b93a276572aa54c04212ceca5ac38fedf34ab/src/async_utils/gen_transform.py#L147
 def generate_audio(
     piper_tts: PiperVoice, text: str, *, speed: float = 1.0, sample_rate: int | None = None
 ) -> Generator[bytes, None, None]:
+    """
+    Description
+        Генерирует аудио с использованием модели Piper.
+
+    Args:
+        piper_tts: Модель Piper.
+        text: Текст для генерации аудио.
+        speed: Скорость генерации.
+        sample_rate: Частота дискретизации.
+
+    Returns:
+        Генератор байтов аудио данных.
+    """
     if sample_rate is None:
         sample_rate = piper_tts.config.sample_rate
     start = time.perf_counter()
