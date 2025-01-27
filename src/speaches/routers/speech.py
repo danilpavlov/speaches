@@ -126,12 +126,53 @@ Each quality has a different default sample rate:
 
 
 # https://platform.openai.com/docs/api-reference/audio/createSpeech
-@router.post("/v1/audio/speech")
+@router.post(
+    "/v1/audio/speech", 
+    summary="TTS (Text to speach)")
 async def synthesize(
     piper_model_manager: PiperModelManagerDependency,
     kokoro_model_manager: KokoroModelManagerDependency,
     body: CreateSpeechRequestBody,
 ) -> StreamingResponse:
+    """
+    # Description
+        Преобразует текст в речь (Text-to-Speech).
+        
+    #### Features:
+        - Поддержка моделей Kokoro и Piper
+        - Различные языки и голоса
+        - Настраиваемые параметры синтеза
+        - Потоковая передача аудио
+        - Форматы вывода: mp3, wav, ogg
+        - Поддержка ТОЛЬКО модели rhasspy/piper-voices (тк Кокоро работает только с en)
+
+    ## Args:
+        piper_model_manager: Менеджер моделей Piper
+        kokoro_model_manager: Менеджер моделей Kokoro
+        body: Параметры запроса для генерации речи
+
+    ## Returns:
+        StreamingResponse с аудио данными
+
+    ## Raises:
+        HTTPException: При ошибке генерации речи
+
+    #### Examples:
+        >>> # Генерация речи с помощью Kokoro
+        >>> response = await synthesize(
+        ...     piper_model_manager,
+        ...     kokoro_model_manager,
+        ...     CreateSpeechRequestBody(
+        ...         model="hexgrad/Kokoro-82M",
+        ...         input="Привет, мир!",
+        ...         voice="af",
+        ...         language="ru-ru",
+        ...         response_format="mp3"
+        ...     )
+        ... )
+        >>> print(response)
+        `output.mp3` - выходной аудио файл с речью
+    """
     match body.model:
         case "hexgrad/Kokoro-82M":
             # TODO: download the `voices.json` file
@@ -170,7 +211,7 @@ async def synthesize(
                 return StreamingResponse(audio_generator, media_type=f"audio/{body.response_format}")
 
 
-@router.get("/v1/audio/speech/voices")
+@router.get("/v1/audio/speech/voices", summary="Получить список доступных голосов")
 def list_voices(model_id: ModelId | None = None) -> list[Voice]:
     voices: list[Voice] = []
     if model_id == "hexgrad/Kokoro-82M" or model_id is None:
