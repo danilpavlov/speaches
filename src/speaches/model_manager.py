@@ -15,7 +15,6 @@ from kokoro_onnx import Kokoro
 from onnxruntime import InferenceSession
 
 from speaches.hf_utils import get_kokoro_model_path, get_piper_voice_model_file
-from speaches.config import CONFIG
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -28,13 +27,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
 # TODO: enable concurrent model downloads
 
 
 class SelfDisposingModel[T]:
     def __init__(
-        self, model_id: str, load_fn: Callable[[], T], ttl: int, unload_fn: Callable[[str], None] | None = None
+        self, 
+        model_id: str, 
+        load_fn: Callable[[], T], 
+        ttl: int, 
+        unload_fn: Callable[[str], None] | None = None,
+        enable_dynamic_loading: bool = False
     ) -> None:
         self.model_id = model_id
         self.load_fn = load_fn
@@ -42,7 +45,7 @@ class SelfDisposingModel[T]:
         self.unload_fn = unload_fn
 
         self.ref_count: int = 0
-        self.rlock = threading.RLock() if CONFIG.enable_dynamic_loading else nullcontext()
+        self.rlock = threading.RLock() if enable_dynamic_loading else nullcontext()
         self.expire_timer: threading.Timer | None = None
         self.model: T | None = None
 
@@ -108,14 +111,11 @@ class SelfDisposingModel[T]:
 
 
 class WhisperModelManager:
-    def __init__(self, whisper_config: WhisperConfig) -> None:
+    def __init__(self, whisper_config: WhisperConfig, enable_dynamic_loading: bool = False) -> None:
         self.whisper_config = whisper_config
         self.loaded_models: OrderedDict[str, SelfDisposingModel[WhisperModel]] = OrderedDict()
-        self._lock = (
-            threading.Lock() 
-            if CONFIG.enable_dynamic_loading
-            else nullcontext()
-        )
+        self._lock = threading.Lock() if enable_dynamic_loading else nullcontext()
+        
 
     def _load_fn(self, model_id: str) -> WhisperModel:
         return WhisperModel(
@@ -159,14 +159,10 @@ ONNX_PROVIDERS = ["CUDAExecutionProvider", "CPUExecutionProvider"]
 
 
 class PiperModelManager:
-    def __init__(self, ttl: int) -> None:
+    def __init__(self, ttl: int, enable_dynamic_loading: bool = False) -> None:
         self.ttl = ttl
         self.loaded_models: OrderedDict[str, SelfDisposingModel[PiperVoice]] = OrderedDict()
-        self._lock = (
-            threading.Lock() 
-            if CONFIG.enable_dynamic_loading
-            else nullcontext()
-        )
+        self._lock = threading.Lock() if enable_dynamic_loading else nullcontext()
 
     def _load_fn(self, model_id: str) -> PiperVoice:
         from piper.voice import PiperConfig, PiperVoice
@@ -206,14 +202,10 @@ class PiperModelManager:
 
 
 class KokoroModelManager:
-    def __init__(self, ttl: int) -> None:
+    def __init__(self, ttl: int, enable_dynamic_loading: bool = False) -> None:
         self.ttl = ttl
         self.loaded_models: OrderedDict[str, SelfDisposingModel[Kokoro]] = OrderedDict()
-        self._lock = (
-            threading.Lock() 
-            if CONFIG.enable_dynamic_loading
-            else nullcontext()
-        )
+        self._lock = threading.Lock() if enable_dynamic_loading else nullcontext()
 
     # TODO
     def _load_fn(self, _model_id: str) -> Kokoro:
