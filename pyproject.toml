@@ -19,6 +19,11 @@ dependencies = [
     "sounddevice>=0.5.1",
     "soundfile>=0.12.1",
     "uvicorn>=0.30.6",
+    "torch==2.3.1",
+    "torchvision==0.18.1",
+    "torchaudio==2.3.1",
+    "pyannote-audio==3.3.2",
+    
 ]
 
 [project.optional-dependencies]
@@ -142,7 +147,7 @@ markers = [
 constraint-dependencies = ["llvmlite>=0.40.0"]
 
 [tool.uv.sources]
-piper-phonemize = { url = "https://github.com/fedirz/piper-phonemize/raw/refs/heads/master/dist/piper_phonemize-1.2.0-cp312-cp312-manylinux_2_28_x86_64.whl" }
+piper-phonemize = { path = "./wheels/piper_phonemize-1.2.0-cp312-cp312-manylinux_2_28_x86_64.whl" }
 
 [[tool.uv.dependency-metadata]]
 name = "piper-tts"
