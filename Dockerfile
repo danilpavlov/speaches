@@ -34,7 +34,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # PermissionError: [Errno 13] Permission denied: '/home/ubuntu/.cache/huggingface/hub'
 # This error occurs because the volume is mounted as root and the `ubuntu` user doesn't have permission to write to it. Pre-creating the directory solves this issue.
 RUN mkdir -p $HOME/.cache/huggingface/hub
-ENV WHISPER__MODEL=Systran/faster-whisper-large-v3
+ENV WHISPER__MODEL=h2oai/faster-whisper-large-v3-turbo
 ENV UVICORN_HOST=0.0.0.0
 ENV UVICORN_PORT=8000
 ENV PATH="$HOME/speaches/.venv/bin:$PATH"
@@ -47,4 +47,4 @@ ENV HF_HUB_ENABLE_HF_TRANSFER=0
 ENV DO_NOT_TRACK=1
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "--factory", "speaches.main:create_app"]
+CMD ["uvicorn", "--factory", "speaches.main:create_app"]
