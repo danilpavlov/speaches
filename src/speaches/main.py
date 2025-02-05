@@ -31,6 +31,9 @@ from speaches.routers.diarization import (
     router as diarization_router,
 )
 from contextlib import asynccontextmanager
+import os
+
+from speaches.dependencies import get_model_manager, get_piper_model_manager, get_diarization_model
 
 DESCRIPTION = """
 # Speaches - Сервис для распознавания и синтеза речи
@@ -174,6 +177,16 @@ TAGS_METADATA = [
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print('Starting up')
+    _ = get_diarization_model()
+    model_managers = {
+        os.getenv('WHISPER__MODEL', None): get_model_manager(), 
+        "ru_RU-denis-medium": get_piper_model_manager()
+    }
+    for name, model in model_managers.items():
+        print('Loading: ', type(model).__name__)
+        if name:
+            with model.load_model(name) as model_instance:
+                pass
     yield
     print('Shutting down')
     
