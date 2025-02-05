@@ -29,6 +29,9 @@ import torch
 from speaches.config import Config
 from speaches.model_manager import KokoroModelManager, PiperModelManager, WhisperModelManager
 
+import os
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 # NOTE: `get_config` is called directly instead of using sub-dependencies so that these functions could be used outside of `FastAPI`  # noqa: E501
@@ -61,7 +64,6 @@ def get_model_manager() -> WhisperModelManager:
         Объект WhisperModelManager.
     """
     config = get_config()
-    print(config.whisper)
     return WhisperModelManager(config.whisper)
 
 
@@ -247,11 +249,30 @@ def get_diarization_model() -> Pipeline:
     Returns:
         Объект Pipeline с моделью диаризации.
     """
+    def load_pipeline_from_pretrained(path_to_config: str | Path) -> Pipeline:
+        path_to_config = Path(path_to_config)
+
+        print(f"Loading pyannote pipeline from {path_to_config}...")
+        # the paths in the config are relative to the current working directory
+        # so we need to change the working directory to the model path
+        # and then change it back
+
+        cwd = Path.cwd().resolve()  # store current working directory
+
+        # first .parent is the folder of the config, second .parent is the folder containing the 'models' folder
+        cd_to = path_to_config.parent.parent.resolve()
+
+        print(f"Changing working directory to {cd_to}")
+        os.chdir(cd_to)
+
+        pipeline = Pipeline.from_pretrained(path_to_config)
+
+        print(f"Changing working directory back to {cwd}")
+        os.chdir(cwd)
+
+        return pipeline
     config = get_config()  # HACK
-    diarization_pipeline = Pipeline.from_pretrained(
-        config.diarization.model,
-        use_auth_token=config.hf_api_token,
-    )
+    diarization_pipeline = load_pipeline_from_pretrained('./pyannote_diarization_config.yaml')
     logger.info(f'Загружаем модель диаризации на устройство: {config.diarization.device}')
     if config.diarization.device != 'cpu':
         diarization_pipeline = diarization_pipeline.to(torch.device(config.diarization.device))
