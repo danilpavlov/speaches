@@ -86,78 +86,228 @@ DESCRIPTION = """
 - Управление динамической загрузки модели
 
 ## 📋 Примеры использования
-### 1. Диаризация аудио
+
+# 1. Диаризация:
+
+Диаризация позволяет разбить аудиофайл на сегменты речи спикеров
+
+## Описание аргументов:
+* file: 
+  * file -- входной аудиофайл
+* language: 
+  * string -- язык в формате ISO 639-1
+* response_format: 
+  * string -- формат ответа 
+  * Достпуны: ("text", "json", "verbose_json", "srt", "vtt")
+* num_speakers: 
+  * integer -- число спикеров
+* temperature: 
+  * float -- температура для модели изначальной транскрибации
+* prompt: 
+  * string -- Промпт для виспера
+* timestamp_granularities: 
+  * string -- Гранулярность временных меток 
+  * Доступны: ("segment", "word")
+* hotwords: 
+  * string -- Ключевые слова
+* vad_filter: 
+  * boolean -- Использовать VAD фильтр
+
+### Примеры запросов:
+
+### 1.1 Отправляем:
 ```bash
-curl -X POST "http://localhost:8000/v1/audio/diarization" \
+curl -X POST $SPEACHES_URL/v1/audio/diarization \
         -H "Content-Type: multipart/form-data" \
         -F "file=@audio.wav" \
-        -F "model=base" \
         -F "language=ru" \
         -F "response_format=verbose_json" \
         -F "num_speakers=2" \
         -F "timestamp_granularities=segment" \
-        -F "timestamp_granularities=word"
+        -F "timestamp_granularities=word" \
+        -F "temperature=1.0"
 ```
-Ожидаем:
+
+#### 1.1 Ожидаем:
 ```json
 [
   {
     "id": 1,
     "start": 0.0,
-    "end": 2.0,
-    "text": " Привет! Меня зовут Пайпер!",
+    "end": 1.76,
+    "text": " Привет, меня зовут Пайпер.",
     "speaker": "SPEAKER_00"
   }
 ]
 ```
 
-### 2. Точечная диаризация
+### 1.2 Отправляем:
 ```bash
-curl -X POST http://localhost:8000/diarize \
-        -F "audio=@audio.wav" \
-        -F "num_speakers=2"
-```
-Ожидаем:
-```json
-{
-  "diarization_segments": [
-    {
-      "speaker": "SPEAKER_00",
-      "start": 0.03096875,
-      "end": 1.9209687500000001
-    }
-  ],
-  "success": true,
-  "error": null
-}
+curl -X POST "$SPEACHES_URL/v1/audio/diarization" \
+        -H "Content-Type: multipart/form-data" \
+        -F "file=@audio.wav" \
+        -F "language=ru" \
+        -F "response_format=verbose_json" \
+        -F "timestamp_granularities=word" \
+        -F "temperature=1.0" \
+        -F "hotwords=Привет" \
+        -F "num_speakers=1" \
+        -F "vad_filter=True" \
+        -F "model=h2oai/faster-whisper-large-v3-turbo"
 ```
 
-### 3. STT
-```bash
-curl http://localhost:8000/v1/audio/transcriptions -F "file=@audio.wav"
-```
-Ожидаем:
+#### 1.2 Ожидаем
 ```json
-{
-  "text": "Привет, меня зовут Пайпер."
-}
+[
+  {
+    "id": 1,
+    "start": 0.0,
+    "end": 2.02,
+    "text": " Привет меня зовут Пайпер",
+    "speaker": "SPEAKER_00"
+  }
+]
 ```
 
-### 4. TTS
+
+# 2. TTS (Text to speech)
+
+Перевод текста в голос
+
+## Описание аргументов:
+
+* input: 
+  * string -- Входной текст для перевода в голос
+* model: 
+  * string -- Имя модели 
+  * (Доступна только rhasspy/piper-voices)
+* voice: 
+  * string -- Голосовая модель 
+  * (Для русского языка: ru_RU-denis-medium, ru_RU-dmitri-medium, ru_RU-irina-medium, ru_RU-ruslan-mediu)
+* response_format: 
+  * tring -- формат ответа 
+  * Доступны: ("mp3", "flac", "wav", "pcm")
+* speed: 
+  * int -- Скорость голоса
+* sample_rate: 
+  * int -- Частота сэмплирования в Гц
+
+## Примеры запросов:
+
+### 2.1 Отправляем:
 ```bash
-curl http://localhost:8000/v1/audio/speech \
-        -H "Content-Type: application/json" \
-        -d '{
-  "model": "rhasspy/piper-voices",
-  "input": "Привет, меня зовут Пайпер!",
-  "voice": "ru_RU-denis-medium",
-  "response_format": "wav",
-  "speed": 1,
-  "sample_rate": 8000
+curl $SPEACHES_URL/v1/audio/speech \
+	-H "Content-Type: application/json" \
+	-d '{
+    "model": "rhasspy/piper-voices",
+    "input": "Я - Денис",
+    "voice": "ru_RU-denis-medium",
+    "response_format": "wav",
+    "speed": 1,
+    "sample_rate": 8000
 }' \
-        --output audio.wav
+	--output tts_denis.wav
 ```
-Ожидаем: audio.wav
+
+#### 2.1 Ожидаем:
+```
+file: tts_denis.wav
+```
+
+### 2.2 Отправляем:
+```bash
+curl $SPEACHES_URL/v1/audio/speech \
+	-H "Content-Type: application/json" \
+	-d '{
+    "model": "rhasspy/piper-voices",
+    "input": "Я - Дмитрий",
+    "voice": "ru_RU-dmitri-medium",
+    "response_format": "mp3",
+    "speed": 4,
+    "sample_rate": 8000
+}' \
+	--output tts_dmitri.mp3
+```
+
+#### 2.2 Ожидаем:
+```
+file: tts_dmitri.mp3
+```
+
+
+# 3. STT (Speech to text)
+
+Переводит голос в текст
+
+## Описание аргументов:
+
+* input: 
+  * string -- Входной текст для перевода в голос
+* model: 
+  * string -- Имя модели 
+  * (Доступна только rhasspy/piper-voices)
+* voice: 
+  * string -- Голосовая модель 
+  * (Для русского языка: ru_RU-denis-medium, ru_RU-dmitri-medium, ru_RU-irina-medium, ru_RU-ruslan-mediu)
+* response_format: 
+  * string -- формат ответа 
+  * Доступны: ("mp3", "flac", "wav", "pcm")
+* speed: 
+  * int -- Скорость голоса
+* sample_rate: 
+  * int -- Частота сэмплирования в Гц
+## Примеры запросов:
+
+### 2.1 Отправляем:
+```bash
+curl $SPEACHES_URL/v1/audio/transcriptions -F "file=@audio.wav"
+```
+
+#### 2.1 Ожидаем:
+```json
+{"text":"Привет, меня зовут Пайпер."}
+```
+
+### 2.2 Отправляем:
+```bash
+curl $SPEACHES_URL/v1/audio/transcriptions -F "file=@audio.wav" \
+	-F "model=h2oai/faster-whisper-large-v3-turbo" \
+	-F "language=ru" \
+	-F "prompt='You are a helpful assistant'" \
+	-F "response_format=verbose_json" \
+	-F "temperature=1.0" \
+	-F "timestamp_granularities=segment" \
+	-F "stream=False" \
+	-F "hotwords=Привет" \
+	-F "vad_filter=False"
+```
+
+#### 2.2 Ожидаем:
+```json
+{
+  "task":"transcribe",
+  "language":"ru",
+  "duration":2.031625,
+  "text":"Привет! Меня зовут Пайпер.",
+  "words":null,
+  "segments":
+    [
+      {
+        "id":1,
+        "seek":0,
+        "start":0.0,
+        "end":2.0,
+        "text":" Привет! Меня зовут Пайпер.",
+        "tokens":[50365,38932,0,47311,46376,2608,3183,14566,13,50465],
+        "temperature":1.0,
+        "avg_logprob":-0.41145099834962323,
+        "compression_ratio":0.8103448275862069,
+        "no_speech_prob":0.0,
+        "words":null
+      }
+    ]
+  }
+```
 
 """
 
