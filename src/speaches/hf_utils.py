@@ -288,7 +288,8 @@ def get_piper_voice_model_file(voice: str) -> Path:
     Returns:
         Путь к файлу модели.
     """
-    model_file = next(list_model_files("rhasspy/piper-voices", glob_pattern=f"**/{voice}.onnx"), None)
+    list_models = list_model_files("rhasspy/piper-voices", glob_pattern=f"**/{voice}.onnx")
+    model_file = next(list_models, None)
     if model_file is None:
         raise FileNotFoundError(f"Could not find model file for '{voice}' voice")
     return model_file
