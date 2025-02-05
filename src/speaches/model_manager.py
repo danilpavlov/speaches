@@ -137,7 +137,7 @@ class WhisperModelManager:
             compute_type=self.whisper_config.compute_type,
             cpu_threads=self.whisper_config.cpu_threads,
             num_workers=self.whisper_config.num_workers,
-            local_files_only=False  # True, if you don't want to load from the internet and check cache only
+            local_files_only=True  # True, if you don't want to load from the internet and check cache only
         )
 
     def _handle_model_unload(self, model_name: str) -> None:
