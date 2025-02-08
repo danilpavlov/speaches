@@ -217,7 +217,6 @@ class Config(BaseSettings):
     model_config = SettingsConfigDict(env_nested_delimiter="__")
 
     api_key: str | None = Field(None)
-    hf_api_token: str = Field(alias='HF_API_TOKEN')
     """
     If set, the API key will be required for all requests.
     """
