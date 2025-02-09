@@ -273,7 +273,7 @@ def transcribe_file(
     ] = ["segment"],
     stream: Annotated[bool, Form()] = False,
     hotwords: Annotated[str | None, Form()] = None,
-    vad_filter: Annotated[bool, Form()] = False,
+    vad_filter: Annotated[bool, Form()] = True,
 ) -> Response | StreamingResponse:
     """
     # Description
@@ -307,6 +307,13 @@ def transcribe_file(
             "text": "<ТЕКСТ ИЗ АУДИОФАЙЛА>"
         }
     """
+    logger.info(f"Model: {model}")
+    logger.info(f"Language: {language}")
+    logger.info(f"Response format: {response_format}")
+    logger.info(f"Timestamp granularities: {timestamp_granularities}")
+    logger.info(f"Stream: {stream}")
+    logger.info(f"Hotwords: {hotwords}")
+    logger.info(f"VAD filter: {vad_filter}")
     if model is None:
         model = config.whisper.model
     if language is None:
@@ -386,7 +393,7 @@ async def transcribe_stream(
     language: Annotated[Language | None, Query()] = None,
     response_format: Annotated[ResponseFormat | None, Query()] = None,
     temperature: Annotated[float, Query()] = 0.0,
-    vad_filter: Annotated[bool, Query()] = False,
+    vad_filter: Annotated[bool, Query()] = True,
 ) -> None:
     """
     Description
