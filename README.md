@@ -1,6 +1,51 @@
 > [!NOTE]
 > This project was previously named `faster-whisper-server`. I've decided to change the name from `faster-whisper-server`, as the project has evolved to support more than just transcription.
 
+
+# Getting Started
+
+
+# Установка весов моделей:
+
+## 1 Вариант: через huggingface-cli
+
+```bash
+pip install 'huggingface_hub[cli]'
+huggingface-cli login
+
+# Если на этапе логина: PermissionError
+chmod 777 ~/.cache/huggingface
+```
+
+```bash
+# Этот мув нужен, так как speaches использует именно кэш моделей. (будет искать с models--*)
+export HF_HOME=$(pwd)/cache/huggingface
+export TRANSFORMERS_CACHE=$(pwd)/cache/huggingface
+
+# Скачивание весов
+huggingface-cli download h2oai/faster-whisper-large-v3-turbo
+huggingface-cli download pyannote/speaker-diarization-3.1
+# Загружаем только RU и EN голоса:
+for f in "voices.json" "ru/*" "en/*" "_script/*" "README.md"; do huggingface-cli download rhasspy/piper-voices --include "$f"; done
+
+# Возвращаем директорию в исходное состояние
+export HF_HOME=~/.cache/huggingface
+export TRANSFORMERS_CACHE=~/.cache/huggingface
+```
+
+
+## 2 Вариант: через докер образ с кэшем моделей
+
+```bash
+# Через докер образ с кэшем моделей:
+docker run --rm -it -v $(pwd)/cache/huggingface/hub:/cache eyeonyou/speaches-cache:0.0.2 mv ./models--* /cache
+```
+
+```bash
+uv sync --frozen --compile-bytecode --extra ui
+```
+
+
 # Speaches
 
 `speaches` is an OpenAI API-compatible server supporting streaming transcription, translation, and speech generation. Speach-to-Text is powered by [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and for Text-to-Speech [piper](https://github.com/rhasspy/piper) and [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) are used. This project aims to be Ollama, but for TTS/STT models.
