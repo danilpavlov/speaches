@@ -19,6 +19,29 @@ class DiarizationSegment:
     speaker: str
     start: float
     end: float
+    
+def merge_speakers(segments: list[dict]) -> list[dict]:
+    merged = []
+    current_speaker = None
+    current_segment = None
+    
+    for segment in segments:
+        if current_speaker == segment['speaker']:
+            # Если спикер тот же, расширяем текущий сегмент
+            current_segment['end'] = segment['end']
+            current_segment['text'] += ' ' + segment['text']
+        else:
+            # Если спикер изменился, добавляем текущий сегмент и начинаем новый
+            if current_segment:
+                merged.append(current_segment)
+            current_segment = segment.copy()
+            current_speaker = segment['speaker']
+    
+    # Добавляем последний сегмент
+    if current_segment:
+        merged.append(current_segment)
+    
+    return merged
 
 def calculate_overlap(trans_seg: TranscriptionSegment, diar_seg: DiarizationSegment) -> float:
     """
@@ -76,6 +99,8 @@ def map_speakers_to_segments(
     
     # Convert the result to a list of dictionaries
     result_json = [asdict(segment) for segment in result]
+    
+    result_json = merge_speakers(result_json)
     
     # Return JSON string with proper encoding for Cyrillic characters
     return json.dumps(result_json, ensure_ascii=False, indent=2)
