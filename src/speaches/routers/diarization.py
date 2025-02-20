@@ -33,6 +33,7 @@ from speaches.nemo_diarizer import create_basic_config, diarize as diarize_nemo
 import torchaudio
 import torch
 import os
+from speaches.hash_ import get_file_hash
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=['Диаризация'])
@@ -176,7 +177,7 @@ def diarize_file(
     language: Annotated[Language | None, Form()] = None,
     prompt: Annotated[str | None, Form()] = None,
     response_format: Annotated[ResponseFormat | None, Form()] = None,
-    temperature: Annotated[float, Form()] = 0.0,
+    temperature: Annotated[float, Form()] = 0.5,
     timestamp_granularities: Annotated[
         TimestampGranularities,
         # WARN: `alias` doesn't actually work.
@@ -262,22 +263,21 @@ def diarize_file(
 
     params = {'num_speakers': num_speakers} if num_speakers else {}
     
-    logger.info(f'1 | Transcription segments: {list(transcription_segments)}')
+    logger.info(f'Transcription segments: {list(transcription_segments)}')
     
     # Convert numpy array to bytes
     if not os.path.exists('./tmp'):
         os.makedirs('./tmp')
         
-    logger.info(f'2 | Transcription segments: {list(transcription_segments)}')
     torchaudio.save(
         os.path.join('tmp', filename),
         torch.from_numpy(audio).cpu().unsqueeze(0),  # Add channel dimension
         sample_rate=16000,  # faster-whisper uses 16kHz
         channels_first=True
     )
+    original_file_hash = get_file_hash('tmp/' + filename)
     logger.info(f'Успешно создали файл: tmp/{filename}')
     
-    logger.info(f'3 | Transcription segments: {list(transcription_segments)}')
     nemo_config, output_dir = create_basic_config(
         audio_filepath=filename, 
         num_speakers=num_speakers, 
@@ -295,8 +295,7 @@ def diarize_file(
     # Send request with proper file formatting
     rttm_filename = ''.join(filename.split('.')[:-1]) + '.rttm'
     try:
-        logger.info(f'4 | Transcription segments: {list(transcription_segments)}')
-        diarization_segments = diarize_nemo(nemo_config, output_dir + f'/pred_rttms/{rttm_filename}', "cuda")
+        diarization_segments = diarize_nemo(nemo_config, output_dir + f'/pred_rttms/{rttm_filename}', "cuda", original_file_hash)
     except Exception as e:
         logger.error(f'Ошибка при диаризации: {e}')
         raise HTTPException(
@@ -307,7 +306,6 @@ def diarize_file(
         logger.info(f'Успешно диаризовали файл!')
     
     # Map speakers to segments and return JSON response directly
-    logger.info(f'5 | Transcription segments: {list(transcription_segments)}')
     result = map_speakers_to_segments(transcription_segments, diarization_segments)
     logger.info(f'Результат диаризации: {result}')
     return Response(

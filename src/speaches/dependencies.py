@@ -32,6 +32,7 @@ from speaches.model_manager import KokoroModelManager, PiperModelManager, Whispe
 import os
 from pathlib import Path
 
+
 logger = logging.getLogger(__name__)
 
 # NOTE: `get_config` is called directly instead of using sub-dependencies so that these functions could be used outside of `FastAPI`  # noqa: E501
@@ -320,4 +321,4 @@ def diarization_audio_file_dependency(
         return {'audio': audio, 'filename': filename}  # pyright: ignore reportReturnType
 
 
-DiarizationAudioFileDependency = Annotated[dict[str, NDArray[float32] | str], Depends(diarization_audio_file_dependency)]
+DiarizationAudioFileDependency = Annotated[dict[str, NDArray[float32] | str | str], Depends(diarization_audio_file_dependency)]

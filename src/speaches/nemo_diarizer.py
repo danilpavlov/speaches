@@ -4,9 +4,10 @@ import os
 from uuid import uuid4
 from omegaconf import OmegaConf
 from nemo.collections.asr.models import ClusteringDiarizer
-from nemo.collections.asr.parts.utils.speaker_utils import rttm_to_labels
+from nemo.collections.asr.parts.utils.speaker_utils import rttm_to_labels, read_rttm_lines
 from speaches.map_speakers import DiarizationSegment
 import logging
+import shutil
 
 
 logger = logging.getLogger(__name__)
@@ -45,13 +46,26 @@ def create_basic_config(audio_filepath: str, num_speakers: int, model_config_fil
     return config, output_dir
 
 
-def diarize(config: dict, output_rttm_filepath: str, device: str) -> list[DiarizationSegment]:
+def diarize(config: dict, output_rttm_filepath: str, device: str, original_file_hash: str) -> list[DiarizationSegment]:
     # Starting diarization:
-    oracle_vad_clusdiar_model = ClusteringDiarizer(cfg=config).to(device)
-    oracle_vad_clusdiar_model.diarize()
+    
+    os.makedirs('rttm_cache', exist_ok=True)
+    if f'{original_file_hash}.rttm' in os.listdir('rttm_cache'):
+        logger.info(f'Используем кэшированный rttm файл: {original_file_hash}.rttm')
+        output_rttm_filepath = os.path.join('rttm_cache', f'{original_file_hash}.rttm')
+        labels = rttm_to_labels(output_rttm_filepath)
+    else:
+        oracle_vad_clusdiar_model = ClusteringDiarizer(cfg=config).to(device)
+        oracle_vad_clusdiar_model.diarize()
+        rttm_lines = read_rttm_lines(output_rttm_filepath)
+        print(rttm_lines)
+        with open('rttm_cache/'+f'{original_file_hash}.rttm', 'w') as f:
+            f.write(''.join(rttm_lines))
+            labels = rttm_to_labels(output_rttm_filepath)
+            
+        shutil.rmtree('./tmp/')
     
     # Extracting segment labels:
-    labels = rttm_to_labels(output_rttm_filepath)
     diar_segments = [] 
     for label in labels:
         start, end, speaker = label.split()
