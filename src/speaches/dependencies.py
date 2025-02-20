@@ -23,7 +23,7 @@ from openai import AsyncOpenAI
 from openai.resources.audio import AsyncSpeech, AsyncTranscriptions
 from openai.resources.chat.completions import AsyncCompletions
 
-from pyannote.audio import Pipeline
+#from pyannote.audio import Pipeline
 import torch
 
 from speaches.config import Config
@@ -237,46 +237,87 @@ def get_transcription_client() -> AsyncTranscriptions:
 TranscriptionClientDependency = Annotated[AsyncTranscriptions, Depends(get_transcription_client)]
 
 
-@lru_cache
-def get_diarization_model() -> Pipeline:
+# @lru_cache
+# def get_diarization_model() -> Pipeline:
+#     """
+#     Description
+#         Возвращает модель диаризации.
+
+#     Note:
+#         Немного неочевидный трюк с вызовом функции с аргументом по умолчанию, чтобы избежать проблем с множественной загрузкой модели.
+
+#     Returns:
+#         Объект Pipeline с моделью диаризации.
+#     """
+#     def load_pipeline_from_pretrained(path_to_config: str | Path) -> Pipeline:
+#         path_to_config = Path(path_to_config)
+
+#         print(f"Loading pyannote pipeline from {path_to_config}...")
+#         # the paths in the config are relative to the current working directory
+#         # so we need to change the working directory to the model path
+#         # and then change it back
+
+#         cwd = Path.cwd().resolve()  # store current working directory
+
+#         # first .parent is the folder of the config, second .parent is the folder containing the 'models' folder
+#         cd_to = path_to_config.parent.parent.resolve()
+
+#         print(f"Changing working directory to {cd_to}")
+#         os.chdir(cd_to)
+
+#         pipeline = Pipeline.from_pretrained(path_to_config)
+
+#         print(f"Changing working directory back to {cwd}")
+#         os.chdir(cwd)
+
+#         return pipeline
+#     config = get_config()  # HACK
+#     diarization_pipeline = load_pipeline_from_pretrained('./pyannote_diarization_config.yaml')
+#     logger.info(f'Загружаем модель диаризации на устройство: {config.diarization.device}')
+#     if config.diarization.device != 'cpu':
+#         diarization_pipeline = diarization_pipeline.to(torch.device(config.diarization.device))
+#     assert diarization_pipeline, "Не удалось загрузить модель диаризации!"
+#     return diarization_pipeline
+
+# DiarizationModelDependency = Annotated[Pipeline, Depends(get_diarization_model)]
+
+
+def diarization_audio_file_dependency(
+    file: Annotated[UploadFile, Form()],
+) -> NDArray[float32]:
     """
     Description
-        Возвращает модель диаризации.
+        Декодирует аудио файл.
 
-    Note:
-        Немного неочевидный трюк с вызовом функции с аргументом по умолчанию, чтобы избежать проблем с множественной загрузкой модели.
+    Args:
+        file: Загруженный аудио файл.
 
     Returns:
-        Объект Pipeline с моделью диаризации.
+        Массив аудио данных.
+
+    Raises:
+        HTTPException: Если не удалось декодировать аудио файл.
     """
-    def load_pipeline_from_pretrained(path_to_config: str | Path) -> Pipeline:
-        path_to_config = Path(path_to_config)
+    try:
+        audio = decode_audio(file.file)
+        filename = file.filename
+    except av.error.InvalidDataError as e:
+        raise HTTPException(
+            status_code=415,
+            detail="Failed to decode audio. The provided file type is not supported.",
+        ) from e
+    except av.error.ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail="Failed to decode audio. The provided file is likely empty.",
+        ) from e
+    except Exception as e:
+        logger.exception(
+            "Failed to decode audio. This is likely a bug. Please create an issue at https://github.com/speaches-ai/speaches/issues/new."
+        )
+        raise HTTPException(status_code=500, detail="Failed to decode audio.") from e
+    else:
+        return {'audio': audio, 'filename': filename}  # pyright: ignore reportReturnType
 
-        print(f"Loading pyannote pipeline from {path_to_config}...")
-        # the paths in the config are relative to the current working directory
-        # so we need to change the working directory to the model path
-        # and then change it back
 
-        cwd = Path.cwd().resolve()  # store current working directory
-
-        # first .parent is the folder of the config, second .parent is the folder containing the 'models' folder
-        cd_to = path_to_config.parent.parent.resolve()
-
-        print(f"Changing working directory to {cd_to}")
-        os.chdir(cd_to)
-
-        pipeline = Pipeline.from_pretrained(path_to_config)
-
-        print(f"Changing working directory back to {cwd}")
-        os.chdir(cwd)
-
-        return pipeline
-    config = get_config()  # HACK
-    diarization_pipeline = load_pipeline_from_pretrained('./pyannote_diarization_config.yaml')
-    logger.info(f'Загружаем модель диаризации на устройство: {config.diarization.device}')
-    if config.diarization.device != 'cpu':
-        diarization_pipeline = diarization_pipeline.to(torch.device(config.diarization.device))
-    assert diarization_pipeline, "Не удалось загрузить модель диаризации!"
-    return diarization_pipeline
-
-DiarizationModelDependency = Annotated[Pipeline, Depends(get_diarization_model)]
+DiarizationAudioFileDependency = Annotated[dict[str, NDArray[float32] | str], Depends(diarization_audio_file_dependency)]
