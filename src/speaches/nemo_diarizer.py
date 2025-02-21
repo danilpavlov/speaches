@@ -21,10 +21,9 @@ def create_basic_config(audio_filepath: str, num_speakers: int, model_config_fil
     meta = {
         'audio_filepath': f'./tmp/{audio_filepath}', #audio_filepath, 
         'offset': 0, 
-        'duration':None, 
+        'duration' :None, 
         'label': 'infer', 
         'text': '-', 
-        'num_speakers': num_speakers, 
         'rttm_filepath': None, 
         'uem_filepath' : None
     }
@@ -46,23 +45,22 @@ def create_basic_config(audio_filepath: str, num_speakers: int, model_config_fil
     return config, output_dir
 
 
-def diarize(config: dict, output_rttm_filepath: str, device: str, original_file_hash: str) -> list[DiarizationSegment]:
+def diarize(config: dict, output_rttm_filepath: str, device: str, original_file_hash: str, enable_caching: bool = False) -> list[DiarizationSegment]:
     # Starting diarization:
-    
+    config.device = device
     os.makedirs('rttm_cache', exist_ok=True)
-    if f'{original_file_hash}.rttm' in os.listdir('rttm_cache'):
+    if f'{original_file_hash}.rttm' in os.listdir('rttm_cache') and enable_caching:
         logger.info(f'Используем кэшированный rttm файл: {original_file_hash}.rttm')
         output_rttm_filepath = os.path.join('rttm_cache', f'{original_file_hash}.rttm')
         labels = rttm_to_labels(output_rttm_filepath)
     else:
-        oracle_vad_clusdiar_model = ClusteringDiarizer(cfg=config).to(device)
+        oracle_vad_clusdiar_model = ClusteringDiarizer(cfg=config).to(config.device)
         oracle_vad_clusdiar_model.diarize()
-        rttm_lines = read_rttm_lines(output_rttm_filepath)
-        print(rttm_lines)
-        with open('rttm_cache/'+f'{original_file_hash}.rttm', 'w') as f:
-            f.write(''.join(rttm_lines))
-            labels = rttm_to_labels(output_rttm_filepath)
-            
+        labels = rttm_to_labels(output_rttm_filepath)
+        if enable_caching:
+            rttm_lines = read_rttm_lines(output_rttm_filepath)
+            with open('rttm_cache/'+f'{original_file_hash}.rttm', 'w') as f:
+                f.write(''.join(rttm_lines))
         shutil.rmtree('./tmp/')
     
     # Extracting segment labels:

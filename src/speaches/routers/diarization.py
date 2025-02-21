@@ -246,6 +246,7 @@ def diarize_file(
         )
     audio = diarization_audio['audio']
     filename = diarization_audio['filename']
+    logger.info(f'Текущая модель: {model}')
     with model_manager.load_model(model) as whisper:
         whisper_model = BatchedInferencePipeline(model=whisper) if config.whisper.use_batched_mode else whisper
         segments, transcription_info = whisper_model.transcribe(
@@ -269,11 +270,14 @@ def diarize_file(
     if not os.path.exists('./tmp'):
         os.makedirs('./tmp')
         
+    # WAV формат очень важен для NeMo. Без него будет отрабатывать очень долго!
+    filename = ''.join(filename.split('.')[:-1]) + '.wav'
     torchaudio.save(
         os.path.join('tmp', filename),
         torch.from_numpy(audio).cpu().unsqueeze(0),  # Add channel dimension
         sample_rate=16000,  # faster-whisper uses 16kHz
-        channels_first=True
+        channels_first=True,
+        format='wav'
     )
     original_file_hash = get_file_hash('tmp/' + filename)
     logger.info(f'Успешно создали файл: tmp/{filename}')
@@ -283,14 +287,6 @@ def diarize_file(
         num_speakers=num_speakers, 
         model_config_filepath='./diar_infer_telephonic.yaml'
     )
-    
-    pretrained_speaker_model = 'titanet_large'
-    nemo_config.diarizer.speaker_embeddings.model_path = pretrained_speaker_model
-    nemo_config.diarizer.speaker_embeddings.parameters.window_length_in_sec = [1.5] 
-    nemo_config.diarizer.speaker_embeddings.parameters.shift_length_in_sec = [0.75] 
-    nemo_config.diarizer.speaker_embeddings.parameters.multiscale_weights= [1] 
-    nemo_config.diarizer.oracle_vad = False # ----> ORACLE VAD 
-    nemo_config.diarizer.clustering.parameters.oracle_num_speakers = False
     
     # Send request with proper file formatting
     rttm_filename = ''.join(filename.split('.')[:-1]) + '.rttm'
