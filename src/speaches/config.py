@@ -199,7 +199,7 @@ class WhisperConfig(BaseModel):
     -1: Never unload the model.
     0: Unload the model immediately after usage.
     """
-    use_batched_mode: bool = False
+    use_batched_mode: bool = True
     """
     Whether to use batch mode(introduced in 1.1.0 `faster-whisper` release) for inference. This will likely become the default in the future and the configuration option will be removed.
     """  # noqa: E501
