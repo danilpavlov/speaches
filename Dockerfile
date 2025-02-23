@@ -6,9 +6,13 @@ LABEL org.opencontainers.image.licenses="MIT"
 # `ffmpeg` is installed because without it `gradio` won't work with mp3(possible others as well) files
 # hadolint ignore=DL3008
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ffmpeg python3.12 && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential curl ffmpeg python3.12 python3.12-dev git g++-11 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+# Set GCC and G++ version
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+
 # "ubuntu" is the default user on ubuntu images with UID=1000. This user is used for two reasons:
 #   1. It's generally a good practice to run containers as non-root users. See https://www.docker.com/blog/understanding-the-docker-user-instruction/
 #   2. Docker Spaces on HuggingFace don't support running containers as root. See https://huggingface.co/docs/hub/en/spaces-sdks-docker#permissions
@@ -35,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # PermissionError: [Errno 13] Permission denied: '/home/ubuntu/.cache/huggingface/hub'
 # This error occurs because the volume is mounted as root and the `ubuntu` user doesn't have permission to write to it. Pre-creating the directory solves this issue.
 RUN mkdir -p $HOME/.cache/huggingface/hub
-ENV WHISPER__MODEL=h2oai/faster-whisper-large-v3-turbo
+ENV WHISPER__MODEL=deepdml/faster-whisper-large-v3-turbo-ct2
 ENV UVICORN_HOST=0.0.0.0
 ENV UVICORN_PORT=8000
 ENV PATH="$HOME/speaches/.venv/bin:$PATH"
@@ -46,7 +50,7 @@ ENV HF_HUB_ENABLE_HF_TRANSFER=0
 # https://huggingface.co/docs/huggingface_hub/en/package_reference/environment_variables#donottrack
 # https://www.reddit.com/r/StableDiffusion/comments/1f6asvd/gradio_sends_ip_address_telemetry_by_default/
 ENV DO_NOT_TRACK=1
-ENV DIARIZATION__DEVICE=cuda
+ENV DIARIZATION__DEVICE=cuda:0
 ENV WHISPER__INFERENCE_DEVICE=cuda
 EXPOSE 8000
 
