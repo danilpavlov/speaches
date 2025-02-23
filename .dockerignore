@@ -1,7 +1,7 @@
 *
 !src/speaches
 !src/models
-!src/pyannote_diarization_config.yaml
+!src/*.yaml
 !pyproject.toml
 !uv.lock
 !wheels/
