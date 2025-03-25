@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse, Response
 from speaches.dependencies import ConfigDependency, DiarizationAudioFileDependency, ModelManagerDependency
 from io import BytesIO
 import logging
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Annotated
@@ -42,126 +43,6 @@ class DiarizationResponse(BaseModel):
     diarization_segments: List[dict] = Field(default_factory=list)
     success: bool = Field(default=False)
     error: Optional[str] = Field(default=None)
-
-
-# async def diarize_audio(
-#     config: ConfigDependency,
-#     #diarization_manager: DiarizationModelDependency,
-#     audio: UploadFile | BytesIO = File(...),
-#     num_speakers: int | None = None,
-#     min_speakers: int | None = None,
-#     max_speakers: int | None = None,
-# ) -> DiarizationResponse:
-#     """
-#     # Description
-#         Выполняет диаризацию аудио файла с помощью pyannote.audio.
-
-#     ## Args:
-#         config: Конфигурация приложения
-#         audio: Аудио файл (UploadFile или BytesIO)
-#         num_speakers: Точное количество говорящих
-#         min_speakers: Минимальное количество говорящих
-#         max_speakers: Максимальное количество говорящих
-
-#     ## Returns:
-#         DiarizationResponse с сегментами диаризации
-
-#     ## Raises:
-#         Exception: При ошибке диаризации
-
-#     #### Examples:
-#         >>> response = await diarize_audio(
-#         ...     config=config,
-#         ...     audio=audio_file,
-#         ...     num_speakers=2
-#         ... )
-#         >>> print(response.diarization_segments)
-#         [{'speaker': 'SPEAKER_00', 'start': 0.0, 'end': 1.5}, ...]
-#     """
-#     try:
-#         logger.info(audio)
-#         # Perform diarization with the properly formatted audio input
-#         # Read the audio file
-#         audio_stream = audio if isinstance(audio, BytesIO) else BytesIO(await audio.read())
-#         audio_stream.seek(0)  # Ensure we're at start of stream
-        
-#         # Load audio using torchaudio
-#         waveform, sample_rate = torchaudio.load(audio_stream)
-#         diarization = diarization_manager(
-#             {"waveform": waveform, "sample_rate": sample_rate},
-#             num_speakers=num_speakers,
-#             min_speakers=min_speakers or config.diarization.min_speakers,
-#             max_speakers=max_speakers or config.diarization.max_speakers,
-#         )
-        
-        
-#         # Convert diarization output to the expected format
-#         segments = []
-#         for turn, _, speaker in diarization.itertracks(yield_label=True):
-#             segments.append({
-#                 "speaker": speaker,
-#                 "start": float(turn.start),
-#                 "end": float(turn.end)
-#             })
-#         return DiarizationResponse(
-#             diarization_segments=segments,
-#             success=True
-#         )
-            
-#     except Exception as e:
-#         logger.exception("Diarization failed")
-#         return DiarizationResponse(
-#             diarization_segments=[],
-#             success=False,
-#             error=str(e)
-#         )
-        
-# @router.post(
-#     '/diarize', 
-#     response_model=DiarizationResponse,
-#     summary="Точечная диаризация аудиофайла")
-# async def diarize(
-#     config: ConfigDependency,
-#     diarization_manager: any,
-#     audio: UploadFile = File(...),
-#     num_speakers: int | None = None,
-#     min_speakers: int | None = None,
-#     max_speakers: int | None = None
-# ):
-#     """
-#     # Description
-#         Эндпоинт для базовой диаризации аудио. Определяет говорящих в аудио файле.
-
-#     #### Features:
-#         - Определение количества говорящих
-#         - Временные метки для каждого говорящего
-#         - Настраиваемые параметры диаризации
-        
-#     ## Args:
-#         config: Конфигурация приложения
-#         audio: Аудио файл
-#         num_speakers: Точное количество говорящих
-#         min_speakers: Минимальное количество говорящих
-#         max_speakers: Максимальное количество говорящих
-
-#     ## Returns:
-#         DiarizationResponse с результатами диаризации
-
-#     #### Examples:
-#         >>> with open('audio.wav', 'rb') as f:
-#         ...     file = UploadFile(f)
-#         ...     response = await diarize(
-#         ...         config=config,
-#         ...         audio=file,
-#         ...         num_speakers=2
-#         ...     )
-#         >>> print(response.diarization_segments)
-#         [{'speaker': 'SPEAKER_00', 'start': 0.0, 'end': 1.5}, ...]
-#     """
-#     print(f'DIARIZATION MANAGER: {diarization_manager}')
-#     return await diarize_audio(
-#         config, diarization_manager, audio, num_speakers, min_speakers, max_speakers
-#     )
 
 
 @router.post(
@@ -272,26 +153,37 @@ def diarize_file(
         
     # WAV формат очень важен для NeMo. Без него будет отрабатывать очень долго!
     filename = ''.join(filename.split('.')[:-1]) + '.wav'
+    diarization_id = str(uuid4())
+    diarization_dir = os.path.join('tmp', diarization_id)
+    os.makedirs(diarization_dir, exist_ok=True)
+    audio_filepath = os.path.join(diarization_dir, filename)
     torchaudio.save(
-        os.path.join('tmp', filename),
+        audio_filepath,
         torch.from_numpy(audio).cpu().unsqueeze(0),  # Add channel dimension
         sample_rate=16000,  # faster-whisper uses 16kHz
         channels_first=True,
         format='wav'
     )
-    original_file_hash = get_file_hash('tmp/' + filename)
+    original_file_hash = get_file_hash(audio_filepath)
     logger.info(f'Успешно создали файл: tmp/{filename}')
     
     nemo_config, output_dir = create_basic_config(
-        audio_filepath=filename, 
+        audio_filepath=audio_filepath, 
         num_speakers=num_speakers, 
-        model_config_filepath='./diar_infer_telephonic.yaml'
+        model_config_filepath='./diar_infer_telephonic.yaml',
+        diarization_dir=diarization_dir
     )
     
     # Send request with proper file formatting
     rttm_filename = ''.join(filename.split('.')[:-1]) + '.rttm'
     try:
-        diarization_segments = diarize_nemo(nemo_config, output_dir + f'/pred_rttms/{rttm_filename}', "cuda", original_file_hash)
+        diarization_segments = diarize_nemo(
+            nemo_config, 
+            output_dir + f'/pred_rttms/{rttm_filename}', 
+            "cuda", 
+            original_file_hash,
+            diarization_dir=diarization_dir
+        )
     except Exception as e:
         logger.error(f'Ошибка при диаризации: {e}')
         raise HTTPException(
