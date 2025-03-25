@@ -9,17 +9,16 @@ from speaches.map_speakers import DiarizationSegment
 import logging
 import shutil
 
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-def create_basic_config(audio_filepath: str, num_speakers: int, model_config_filepath: str):
-    diarization_id = str(uuid4())
-    diarization_dir = os.path.join('tmp', diarization_id)
+def create_basic_config(audio_filepath: str, num_speakers: int, model_config_filepath: str, diarization_dir: str | Path):
     manifest_filepath = os.path.join(diarization_dir, 'input_manifest.json')
     if not os.path.exists(diarization_dir):
         os.makedirs(diarization_dir, exist_ok=True)
     meta = {
-        'audio_filepath': f'./tmp/{audio_filepath}', #audio_filepath, 
+        'audio_filepath': audio_filepath, #audio_filepath, 
         'offset': 0, 
         'duration' :None, 
         'label': 'infer', 
@@ -45,7 +44,7 @@ def create_basic_config(audio_filepath: str, num_speakers: int, model_config_fil
     return config, output_dir
 
 
-def diarize(config: dict, output_rttm_filepath: str, device: str, original_file_hash: str, enable_caching: bool = False) -> list[DiarizationSegment]:
+def diarize(config: dict, output_rttm_filepath: str, device: str, original_file_hash: str, diarization_dir: str | Path, enable_caching: bool = False) -> list[DiarizationSegment]:
     # Starting diarization:
     config.device = device
     os.makedirs('rttm_cache', exist_ok=True)
@@ -59,9 +58,10 @@ def diarize(config: dict, output_rttm_filepath: str, device: str, original_file_
         labels = rttm_to_labels(output_rttm_filepath)
         if enable_caching:
             rttm_lines = read_rttm_lines(output_rttm_filepath)
-            with open('rttm_cache/'+f'{original_file_hash}.rttm', 'w') as f:
+            rttm_filepath = os.path.join(diarization_dir, f'{original_file_hash}.rttm')
+            with open(rttm_filepath, 'w') as f:
                 f.write(''.join(rttm_lines))
-        shutil.rmtree('./tmp/')
+        shutil.rmtree(diarization_dir)
     
     # Extracting segment labels:
     diar_segments = [] 

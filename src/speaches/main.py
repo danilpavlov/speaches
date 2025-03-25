@@ -330,7 +330,7 @@ async def lifespan(app: FastAPI):
     #_ = get_diarization_model()
     model_managers = {
         os.getenv('WHISPER__MODEL', None): get_model_manager(), 
-        "ru_RU-denis-medium": get_piper_model_manager()
+        #"ru_RU-denis-medium": get_piper_model_manager()
     }
     for name, model in model_managers.items():
         print('Loading: ', type(model).__name__)
